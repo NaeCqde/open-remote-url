@@ -19,7 +19,7 @@ fn print_status() {
         "Open Remote URL - Host Status\n\n\
         [Status]\n\
         - Installed: {}\n\
-        - Running: {}\n\n\
+        - Running:   {}\n\n\
         [Usage]\n\
         - To install / start host:\n  Run install-host.{} in the release folder\n\n\
         - To uninstall / clean registrations:\n  Run uninstall-host.{} in the release folder",
@@ -51,7 +51,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     env_logger::init_from_env(env_logger::Env::new().default_filter_or("info"));
-    let _ = dotenvy::dotenv();
+    let _ = dotenvy::dotenv_override();
 
     let args: Vec<String> = env::args().collect();
     if args.len() < 2 {

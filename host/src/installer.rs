@@ -62,7 +62,7 @@ pub fn check_status() -> (bool, bool, PathBuf) {
         let plist_path = PathBuf::from(home)
             .join("Library")
             .join("LaunchAgents")
-            .join("com.open-remote-url.host.plist");
+            .join("quest.nae.open-remote-url.host.plist");
         plist_path.exists()
     };
 
@@ -122,7 +122,7 @@ fn stop_and_unregister() -> Result<(), Box<dyn std::error::Error>> {
         let plist_path = PathBuf::from(home)
             .join("Library")
             .join("LaunchAgents")
-            .join("com.open-remote-url.host.plist");
+            .join("quest.nae.open-remote-url.host.plist");
 
         // Unload launchctl
         let _ = std::process::Command::new("launchctl")
@@ -188,7 +188,7 @@ fn setup_macos_launchagent(binary_path: &Path) -> Result<(), Box<dyn std::error:
     let home = env::var("HOME")?;
     let plist_dir = PathBuf::from(home).join("Library").join("LaunchAgents");
     fs::create_dir_all(&plist_dir)?;
-    let plist_path = plist_dir.join("com.open-remote-url.host.plist");
+    let plist_path = plist_dir.join("quest.nae.open-remote-url.host.plist");
 
     let plist_content = format!(
         r#"<?xml version="1.0" encoding="UTF-8"?>
@@ -196,7 +196,7 @@ fn setup_macos_launchagent(binary_path: &Path) -> Result<(), Box<dyn std::error:
 <plist version="1.0">
 <dict>
     <key>Label</key>
-    <string>com.open-remote-url.host</string>
+    <string>quest.nae.open-remote-url.host</string>
     <key>ProgramArguments</key>
     <array>
         <string>{}</string>
@@ -230,7 +230,7 @@ fn setup_macos_launchagent(binary_path: &Path) -> Result<(), Box<dyn std::error:
         .status();
     let _ = std::process::Command::new("launchctl")
         .arg("start")
-        .arg("com.open-remote-url.host")
+        .arg("quest.nae.open-remote-url.host")
         .status();
 
     Ok(())

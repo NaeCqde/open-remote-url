@@ -30,15 +30,15 @@ This tool was born from the developer's strong personal need: "When logging into
     - [Host Config (host/.env)](#host-config-hostenv)
     - [Client Config (client/.env)](#client-config-clientenv)
 - [Installation](#installation)
-- [Verification](#verification)
+- [Status Check](#status-check)
 - [Uninstallation](#uninstallation)
 - [About Project Development](#about-project-development)
 
 ---
 
-## How It Works
+## Flowchart
 
-![Flowchart](docs/flowchart.png)
+![Flowchart](docs/flowchart.webp)
 
 1. **URL Interception**: Intercepts browser open requests when a URL is opened on the Client.
 2. **URL Display**: The Client daemon immediately forwards only the URL to the Host and opens it in the Host's browser.
@@ -76,14 +76,14 @@ PASSPHRASE=some-shared-secret
 
 ```env
 HOST_URL=http://<host_ip>:8080
-RELAY_HOST=0.0.0.0
-RELAY_PORT=3000
+CLIENT_HOST=0.0.0.0
+CLIENT_PORT=3000
 PASSPHRASE=some-shared-secret
 ```
 
-- `HOST_URL`: URL of the remote Host daemon (e.g. `https://<host>:<port>`)
-- `RELAY_HOST`: Bind IP for the Client relay server (default: `0.0.0.0`)
-- `RELAY_PORT`: Client relay listening port (default: `3000`)
+- `HOST_URL`: URL of the remote Host daemon (e.g. `http://<host_ip>:8080`)
+- `CLIENT_HOST`: Bind IP for the Client daemon (default: `0.0.0.0`)
+- `CLIENT_PORT`: Listening port for the Client daemon (default: `3000`)
 - `PASSPHRASE`: Key matching the Host's passphrase
 
 ---
@@ -101,9 +101,9 @@ To register and start the daemons:
     - macOS: Run `install-host.command`
     - Linux: Run `./install-host.sh`
 - **Client**: Run the script matching your OS inside the release folder:
-    - Windows: Run `install.bat`
-    - macOS: Run `install.command`
-    - Linux: Run `./install.sh`
+    - Windows: Run `install-client.bat`
+    - macOS: Run `install-client.command`
+    - Linux: Run `./install-client.sh`
 
 _In your Client OS settings, select **Open Remote URL** as the default web browser._
 
@@ -113,20 +113,42 @@ _In your Client OS settings, select **Open Remote URL** as the default web brows
 
 Running either binary without arguments displays its current autostart registration status and daemon status:
 
+- **Host**:
+
 ```bash
-$ ./open-remote-url
+$ ./open-remote-url-host
+Open Remote URL - Host Status
+
+[Status]
+- Installed: Yes
+- Running:   Yes
+
+[Usage]
+- To install / start host:
+  Run install-host.command in the release folder
+
+- To uninstall / clean registrations:
+  Run uninstall-host.command in the release folder
+```
+
+- **Client**:
+
+```bash
+$ ./open-remote-url-client
 Open Remote URL - Client Status
 
 [Status]
 - Installed: Yes
-- Running: Yes
+- Running:   Yes
+- Host:      http://<host_ip>:8080
+- Client:    http://0.0.0.0:3000
 
 [Usage]
 - To install / start client:
-  Run install.command in the release folder
+  Run install-client.bat in the release folder
 
 - To uninstall / clean registrations:
-  Run uninstall.command in the release folder
+  Run uninstall-client.bat in the release folder
 ```
 
 ---
@@ -140,9 +162,9 @@ To completely remove autostart registrations, browser associations, plist files,
     - macOS: Run `uninstall-host.command`
     - Linux: Run `./uninstall-host.sh`
 - **Client**: Run the script matching your OS inside the release folder:
-    - Windows: Run `uninstall.bat`
-    - macOS: Run `uninstall.command`
-    - Linux: Run `./uninstall.sh`
+    - Windows: Run `uninstall-client.bat`
+    - macOS: Run `uninstall-client.command`
+    - Linux: Run `./uninstall-client.sh`
 
 ---
 

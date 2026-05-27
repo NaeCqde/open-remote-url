@@ -70,14 +70,14 @@ jobs:
                       client
                       host
 
-            - name: Build Client with Cargo or Cross
+            - name: Build Client & Host with Cargo or Cross
               if: matrix.platform.target != 'riscv64gc-unknown-linux-musl'
               uses: actions-rs/cargo@v1
               with:
                   use-cross: ${{ matrix.platform.use-cross }}
                   command: build
-                  args: --manifest-path ./client/Cargo.toml --locked --release --target ${{ matrix.platform.target }}
-            - name: Build Client RISCV with Cargo or Cross
+                  args: --manifest-path Cargo.toml --locked --release --target ${{ matrix.platform.target }}
+            - name: Build Client & Host RISCV with Cargo or Cross
               if: matrix.platform.target == 'riscv64gc-unknown-linux-musl'
               uses: actions-rs/cargo@v1
               env:
@@ -85,7 +85,8 @@ jobs:
               with:
                   use-cross: ${{ matrix.platform.use-cross }}
                   command: build
-                  args: --manifest-path ./client/Cargo.toml --locked --release --target ${{ matrix.platform.target }}
+                  args: --manifest-path Cargo.toml --locked --release --target ${{ matrix.platform.target }}
+
             - name: Wait
               shell: bash
               run: sleep $((RANDOM % 20 + 3))
@@ -95,17 +96,17 @@ jobs:
               env:
                   CRATE_NAME: open_remote_url
               with:
-                  working-directory: ./client
-                  executable-name: open-remote-url
+                  working-directory: .
+                  executable-name: open-remote-url-client
                   target: ${{ matrix.platform.target }}
                   extra-files: |-
-                      ../scripts/client/install/install.${{ matrix.platform.script-ext }}
-                      ../scripts/client/uninstall/uninstall.${{ matrix.platform.script-ext }}
-                      ./.env.example
-                      ../README.md
-                      ../README.ja_JP.md
-                      ../README.ja_EZ.md
-                      ../README.zh_CN.md
+                      scripts/client/install/install-client.${{ matrix.platform.script-ext }}
+                      scripts/client/uninstall/uninstall-client.${{ matrix.platform.script-ext }}
+                      client/.env.example
+                      README.md
+                      README.ja_JP.md
+                      README.ja_EZ.md
+                      README.zh_CN.md
                   _force-release-for-testing: true
                   action-gh-release-parameters: |
                       {
@@ -123,17 +124,17 @@ jobs:
               env:
                   CRATE_NAME: open_remote_url
               with:
-                  working-directory: ./client
-                  executable-name: open-remote-url
+                  working-directory: .
+                  executable-name: open-remote-url-client
                   target: ${{ matrix.platform.target }}
                   extra-files: |-
-                      ../scripts/client/install/install.${{ matrix.platform.script-ext }}
-                      ../scripts/client/uninstall/uninstall.${{ matrix.platform.script-ext }}
-                      ./.env.example
-                      ../README.md
-                      ../README.ja_JP.md
-                      ../README.ja_EZ.md
-                      ../README.zh_CN.md
+                      scripts/client/install/install-client.${{ matrix.platform.script-ext }}
+                      scripts/client/uninstall/uninstall-client.${{ matrix.platform.script-ext }}
+                      client/.env.example
+                      README.md
+                      README.ja_JP.md
+                      README.ja_EZ.md
+                      README.zh_CN.md
                   _force-release-for-testing: true
                   action-gh-release-parameters: |
                       {
@@ -141,22 +142,6 @@ jobs:
                           "token": "${{ secrets.GITHUB_TOKEN }}"
                       }
 
-            - name: Build Host with Cargo or Cross
-              if: matrix.platform.target != 'riscv64gc-unknown-linux-musl'
-              uses: actions-rs/cargo@v1
-              with:
-                  use-cross: ${{ matrix.platform.use-cross }}
-                  command: build
-                  args: --manifest-path ./host/Cargo.toml --locked --release --target ${{ matrix.platform.target }}
-            - name: Build Host RISCV with Cargo or Cross
-              if: matrix.platform.target == 'riscv64gc-unknown-linux-musl'
-              uses: actions-rs/cargo@v1
-              env:
-                  RUSTFLAGS: "-Ctarget-feature=+crt-static"
-              with:
-                  use-cross: ${{ matrix.platform.use-cross }}
-                  command: build
-                  args: --manifest-path ./host/Cargo.toml --locked --release --target ${{ matrix.platform.target }}
             - name: Wait
               shell: bash
               run: sleep $((RANDOM % 20 + 3))
@@ -166,17 +151,17 @@ jobs:
               env:
                   CRATE_NAME: open_remote_url_host
               with:
-                  working-directory: ./host
+                  working-directory: host
                   executable-name: open-remote-url-host
                   target: ${{ matrix.platform.target }}
                   extra-files: |-
-                      ../scripts/host/install/install-host.${{ matrix.platform.script-ext }}
-                      ../scripts/host/uninstall/uninstall-host.${{ matrix.platform.script-ext }}
-                      ./.env.example
-                      ../README.md
-                      ../README.ja_JP.md
-                      ../README.ja_EZ.md
-                      ../README.zh_CN.md
+                      scripts/host/install/install-host.${{ matrix.platform.script-ext }}
+                      scripts/host/uninstall/uninstall-host.${{ matrix.platform.script-ext }}
+                      host/.env.example
+                      README.md
+                      README.ja_JP.md
+                      README.ja_EZ.md
+                      README.zh_CN.md
                   _force-release-for-testing: true
                   action-gh-release-parameters: |
                       {
@@ -193,17 +178,17 @@ jobs:
               env:
                   CRATE_NAME: open_remote_url_host
               with:
-                  working-directory: ./host
+                  working-directory: host
                   executable-name: open-remote-url-host
                   target: ${{ matrix.platform.target }}
                   extra-files: |-
-                      ../scripts/host/install/install-host.${{ matrix.platform.script-ext }}
-                      ../scripts/host/uninstall/uninstall-host.${{ matrix.platform.script-ext }}
-                      ./.env.example
-                      ../README.md
-                      ../README.ja_JP.md
-                      ../README.ja_EZ.md
-                      ../README.zh_CN.md
+                      scripts/host/install/install-host.${{ matrix.platform.script-ext }}
+                      scripts/host/uninstall/uninstall-host.${{ matrix.platform.script-ext }}
+                      host/.env.example
+                      README.md
+                      README.ja_JP.md
+                      README.ja_EZ.md
+                      README.zh_CN.md
                   _force-release-for-testing: true
                   action-gh-release-parameters: |
                       {

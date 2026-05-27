@@ -9,6 +9,13 @@ use std::process::exit;
 
 fn print_status() {
     let (is_installed, is_running, _) = installer::check_status();
+    let config = shared::config::ClientConfig::load();
+    let host_url = config.host_url.unwrap_or_else(|| "".to_string());
+    let host_url_display = if host_url.is_empty() {
+        "(please set)".to_string()
+    } else {
+        format!("{}/", host_url)
+    };
 
     let ext = if cfg!(target_os = "windows") {
         "bat"
@@ -22,12 +29,17 @@ fn print_status() {
         "Open Remote URL - Client Status\n\n\
         [Status]\n\
         - Installed: {}\n\
-        - Running: {}\n\n\
+        - Running:   {}\n\
+        - HOST:      {}\n\
+        - CLIENT:    http://{}:{}\n\n\
         [Usage]\n\
-        - To install / start client:\n  Run install.{} in the release folder\n\n\
-        - To uninstall / clean registrations:\n  Run uninstall.{} in the release folder",
+        - To install / start client:\n  Run install-client.{} in the release folder\n\n\
+        - To uninstall / clean registrations:\n  Run uninstall-client.{} in the release folder",
         if is_installed { "Yes" } else { "No" },
         if is_running { "Yes" } else { "No" },
+        host_url_display,
+        config.client_host,
+        config.client_port,
         ext,
         ext
     );
@@ -48,7 +60,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
     }
 
     env_logger::init_from_env(env_logger::Env::new().default_filter_or("info"));
-    let _ = dotenvy::dotenv();
+    let _ = dotenvy::dotenv_override();
 
     let args: Vec<String> = env::args().collect();
     if args.len() < 2 {
@@ -59,7 +71,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
     let cmd_or_url = &args[1];
 
     if cmd_or_url == "--install" {
-        log::info!("Installing open-remote-url...");
+        log::info!("Installing open-remote-url-client...");
         match installer::install() {
             Ok(_) => {
                 println!("Client installation completed successfully!");
@@ -70,7 +82,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
             }
         }
     } else if cmd_or_url == "--uninstall" {
-        log::info!("Uninstalling open-remote-url...");
+        log::info!("Uninstalling open-remote-url-client...");
         match installer::uninstall() {
             Ok(_) => {
                 println!("Client uninstallation completed successfully!");
@@ -81,14 +93,14 @@ async fn main() -> Result<(), Box<dyn Error>> {
             }
         }
     } else if cmd_or_url == "--daemon" {
-        log::info!("Starting open-remote-url client daemon...");
+        log::info!("Starting open-remote-url-client daemon...");
         daemon::run().await?;
     } else if looks_like_url(cmd_or_url) {
         let config = shared::config::ClientConfig::load();
-        let relay_port = config.relay_port;
-        let relay_host = config.relay_host;
+        let client_port = config.client_port;
+        let client_host = config.client_host;
 
-        let daemon_url = format!("http://{}:{}/open", relay_host, relay_port);
+        let daemon_url = format!("http://{}:{}/open", client_host, client_port);
 
         log::info!("Sending URL to local daemon: {}", cmd_or_url);
 
@@ -113,7 +125,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
                 }
             }
             Err(e) => {
-                println!("=== Open Remote URL Error ===\nFailed to connect to local daemon: {}\nMake sure the daemon is running ('open-remote-url --daemon')", e);
+                println!("=== Open Remote URL Error ===\nFailed to connect to local daemon: {}\nMake sure the daemon is running ('open-remote-url-client --daemon')", e);
                 exit(1);
             }
         }

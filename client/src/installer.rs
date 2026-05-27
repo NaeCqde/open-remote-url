@@ -83,7 +83,7 @@ pub fn check_status() -> (bool, bool, PathBuf) {
         let plist_path = PathBuf::from(home)
             .join("Library")
             .join("LaunchAgents")
-            .join("com.open-remote-url.client.plist");
+            .join("quest.nae.open-remote-url.client.plist");
         plist_path.exists()
     };
 
@@ -99,10 +99,10 @@ pub fn check_status() -> (bool, bool, PathBuf) {
     };
 
     let config = shared::config::ClientConfig::load();
-    let relay_port = config.relay_port;
+    let client_port = config.client_port;
 
     let is_running = std::net::TcpStream::connect_timeout(
-        &std::net::SocketAddr::from(([127, 0, 0, 1], relay_port)),
+        &std::net::SocketAddr::from(([127, 0, 0, 1], client_port)),
         std::time::Duration::from_millis(200),
     )
     .is_ok();
@@ -121,7 +121,7 @@ fn stop_and_unregister() -> Result<(), Box<dyn std::error::Error>> {
                 "/FI",
                 &format!("PID ne {}", current_pid),
                 "/IM",
-                "open-remote-url.exe",
+                "open-remote-url-client.exe",
             ])
             .status();
 
@@ -164,7 +164,7 @@ fn stop_and_unregister() -> Result<(), Box<dyn std::error::Error>> {
         let plist_path = PathBuf::from(home)
             .join("Library")
             .join("LaunchAgents")
-            .join("com.open-remote-url.client.plist");
+            .join("quest.nae.open-remote-url.client.plist");
 
         // Unload launchctl
         let _ = std::process::Command::new("launchctl")
@@ -216,7 +216,7 @@ fn stop_and_unregister() -> Result<(), Box<dyn std::error::Error>> {
             .join(".local")
             .join("share")
             .join("applications")
-            .join("open-remote-url.desktop");
+            .join("open-remote-url-client.desktop");
         if desktop_path.exists() {
             let _ = fs::remove_file(&desktop_path);
         }
@@ -291,7 +291,7 @@ fn setup_macos_app_bundle(
     let macos_dir = app_dir.join("Contents").join("MacOS");
     fs::create_dir_all(&macos_dir)?;
 
-    let target_exe = macos_dir.join("open-remote-url");
+    let target_exe = macos_dir.join("open-remote-url-client");
     if current_exe != target_exe {
         fs::copy(current_exe, &target_exe)?;
     }
@@ -302,7 +302,7 @@ fn setup_macos_app_bundle(
 <plist version="1.0">
 <dict>
     <key>CFBundleIdentifier</key>
-    <string>com.open-remote-url.client</string>
+    <string>quest.nae.open-remote-url.client</string>
     <key>CFBundleName</key>
     <string>OpenRemoteUrl</string>
     <key>CFBundlePackageType</key>
@@ -310,7 +310,7 @@ fn setup_macos_app_bundle(
     <key>CFBundleSignature</key>
     <string>????</string>
     <key>CFBundleExecutable</key>
-    <string>open-remote-url</string>
+    <string>open-remote-url-client</string>
     <key>LSUIElement</key>
     <true/>
     <key>CFBundleURLTypes</key>
@@ -347,7 +347,7 @@ fn setup_macos_launchagent(binary_path: &Path) -> Result<(), Box<dyn std::error:
     let home = env::var("HOME")?;
     let plist_dir = PathBuf::from(home).join("Library").join("LaunchAgents");
     fs::create_dir_all(&plist_dir)?;
-    let plist_path = plist_dir.join("com.open-remote-url.client.plist");
+    let plist_path = plist_dir.join("quest.nae.open-remote-url.client.plist");
 
     let plist_content = format!(
         r#"<?xml version="1.0" encoding="UTF-8"?>
@@ -355,7 +355,7 @@ fn setup_macos_launchagent(binary_path: &Path) -> Result<(), Box<dyn std::error:
 <plist version="1.0">
 <dict>
     <key>Label</key>
-    <string>com.open-remote-url.client</string>
+    <string>quest.nae.open-remote-url.client</string>
     <key>ProgramArguments</key>
     <array>
         <string>{}</string>
@@ -389,7 +389,7 @@ fn setup_macos_launchagent(binary_path: &Path) -> Result<(), Box<dyn std::error:
         .status();
     let _ = std::process::Command::new("launchctl")
         .arg("start")
-        .arg("com.open-remote-url.client")
+        .arg("quest.nae.open-remote-url.client")
         .status();
 
     Ok(())
@@ -453,7 +453,7 @@ fn setup_linux_browser(binary_path: &Path) -> Result<(), Box<dyn std::error::Err
         .join("share")
         .join("applications");
     fs::create_dir_all(&app_dir)?;
-    let desktop_path = app_dir.join("open-remote-url.desktop");
+    let desktop_path = app_dir.join("open-remote-url-client.desktop");
 
     let desktop_content = format!(
         r#"[Desktop Entry]
@@ -477,7 +477,7 @@ MimeType=x-scheme-handler/http;x-scheme-handler/https;
     let _ = std::process::Command::new("xdg-mime")
         .args(&[
             "default",
-            "open-remote-url.desktop",
+            "open-remote-url-client.desktop",
             "x-scheme-handler/http",
         ])
         .status();
@@ -485,7 +485,7 @@ MimeType=x-scheme-handler/http;x-scheme-handler/https;
     let _ = std::process::Command::new("xdg-mime")
         .args(&[
             "default",
-            "open-remote-url.desktop",
+            "open-remote-url-client.desktop",
             "x-scheme-handler/https",
         ])
         .status();

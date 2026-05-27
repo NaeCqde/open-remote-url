@@ -25,8 +25,8 @@ struct OpenPayload {
 
 pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
     let config = shared::config::ClientConfig::load();
-    let relay_host = config.relay_host;
-    let relay_port = config.relay_port;
+    let client_host = config.client_host;
+    let client_port = config.client_port;
     let passphrase = config.passphrase;
     let host_url = config.host_url.expect("HOST_URL is not set in .env");
 
@@ -39,7 +39,7 @@ pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
 
     // Start background port-tracking loop
     tokio::spawn(async move {
-        if let Err(e) = run_port_tracker(rx_open_url, host_url, relay_port, passphrase).await {
+        if let Err(e) = run_port_tracker(rx_open_url, host_url, client_port, passphrase).await {
             log::error!("Port tracker error: {}", e);
         }
     });
@@ -49,7 +49,7 @@ pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
         .route("/proxy", post(handle_proxy))
         .with_state(state);
 
-    let addr: SocketAddr = format!("{}:{}", relay_host, relay_port).parse()?;
+    let addr: SocketAddr = format!("{}:{}", client_host, client_port).parse()?;
     log::info!("Relay server listening on {}", addr);
     let listener = match tokio::net::TcpListener::bind(addr).await {
         Ok(l) => l,
@@ -57,7 +57,7 @@ pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
             if e.kind() == std::io::ErrorKind::AddrInUse {
                 let msg = format!(
                     "Failed to start Client Daemon: Port {} is already in use. Another instance is likely running.",
-                    relay_port
+                    client_port
                 );
                 log::error!("{}", msg);
                 println!("=== Open Remote URL Daemon Error ===\n{}", msg);
@@ -177,7 +177,7 @@ async fn handle_proxy(
 async fn run_port_tracker(
     mut rx: mpsc::Receiver<String>,
     host_url: String,
-    relay_port: u16,
+    client_port: u16,
     passphrase: Option<String>,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let mut history: VecDeque<(Instant, HashSet<u16>)> = VecDeque::new();
@@ -185,7 +185,7 @@ async fn run_port_tracker(
     let sent_ports = Arc::new(std::sync::Mutex::new(HashSet::<u16>::new()));
 
     let local_ip = get_local_ip().unwrap_or_else(|| "127.0.0.1".to_string());
-    let resolved_relay_url = format!("http://{}:{}", local_ip, relay_port);
+    let resolved_relay_url = format!("http://{}:{}", local_ip, client_port);
 
     loop {
         tokio::select! {
@@ -241,7 +241,7 @@ async fn run_port_tracker(
                         ports_15s.insert(port);
                     }
                 }
-                ports_15s.remove(&relay_port);
+                ports_15s.remove(&client_port);
 
                 tokio::spawn(async move {
                     // 1. Immediately send open request to Host Daemon (with empty ports)
@@ -281,7 +281,7 @@ async fn run_port_tracker(
                         {
                             let sent_lock = sent_ports_clone.lock().unwrap();
                             for port in current_ports {
-                                if port != relay_port && !sent_lock.contains(&port) {
+                                if port != client_port && !sent_lock.contains(&port) {
                                     new_ports.push(port);
                                 }
                             }

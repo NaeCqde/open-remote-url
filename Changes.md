@@ -7,7 +7,7 @@ All notable changes to the `open_remote_url` project are documented below.
 ### Added
 - **Centralized Config Parsing**: Added `shared/src/config.rs` to unify configuration reads. Environment options are restricted to:
   - **Host**: `HOST`, `PORT`, `PASSPHRASE`
-  - **Client**: `HOST_URL`, `RELAY_HOST`, `RELAY_PORT`, `PASSPHRASE`
+  - **Client**: `HOST_URL`, `CLIENT_HOST`, `CLIENT_PORT`, `PASSPHRASE`
 - **WorkingDirectory Config**: Configured plists, systemd services, and startup codes (`main` entry point) to set the working directory to the parent executable directory. This allows background daemons to correctly locate and parse `.env` files next to the executables.
 - **Auto-Start on Installation**: Added `launchctl start` configuration within macOS `installer.rs` routines so that `--install` starts the background daemon immediately.
 - **Stdout Status Output**: Replaced GUI popup modules (Win32 MessageBox, AppleScript, zenity/kdialog dialogs) with standard stdout console prints (`println!`). Running either executable without arguments outputs detailed installation and daemon running status to stdout.
