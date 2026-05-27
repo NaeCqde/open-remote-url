@@ -1,0 +1,212 @@
+name: release
+
+permissions:
+    contents: write
+
+on:
+    push:
+    pull_request:
+
+env:
+    GITHUB_TOKEN: ${{ github.token }}
+    RUST_BACKTRACE: 1
+
+jobs:
+    release:
+        name: Release - ${{ matrix.platform.os-name }}
+        strategy:
+            fail-fast: false
+            matrix:
+                platform:
+                    - os-name: Linux-x86_64
+                      runs-on: ubuntu-latest
+                      target: x86_64-unknown-linux-musl
+                      use-cross: true
+                      script-ext: sh
+                    - os-name: Linux-aarch64
+                      runs-on: ubuntu-latest
+                      target: aarch64-unknown-linux-musl
+                      use-cross: true
+                      script-ext: sh
+                    - os-name: Linux-riscv64
+                      runs-on: ubuntu-24.04-riscv
+                      target: riscv64gc-unknown-linux-musl
+                      use-cross: false
+                      script-ext: sh
+
+                    - os-name: Windows-x86_64
+                      runs-on: windows-latest
+                      target: x86_64-pc-windows-msvc
+                      use-cross: true
+                      script-ext: bat
+                    - os-name: Windows-aarch64
+                      runs-on: windows-latest
+                      target: aarch64-pc-windows-msvc
+                      use-cross: true
+                      script-ext: bat
+
+                    - os-name: macOS-x86_64
+                      runs-on: macos-latest
+                      target: x86_64-apple-darwin
+                      use-cross: true
+                      script-ext: command
+                    - os-name: macOS-aarch64
+                      runs-on: macos-latest
+                      target: aarch64-apple-darwin
+                      use-cross: true
+                      script-ext: command
+        runs-on: ${{ matrix.platform.runs-on }}
+        steps:
+            - uses: actions/checkout@v4
+            - uses: actions-rs/toolchain@v1
+              with:
+                  toolchain: stable
+                  target: ${{ matrix.platform.target }}
+                  override: true
+                  profile: minimal
+            - uses: Swatinem/rust-cache@v2
+              with:
+                  workspaces: |-
+                      client
+                      host
+
+            - name: Build Client with Cargo or Cross
+              if: matrix.platform.target != 'riscv64gc-unknown-linux-musl'
+              uses: actions-rs/cargo@v1
+              with:
+                  use-cross: ${{ matrix.platform.use-cross }}
+                  command: build
+                  args: --manifest-path ./client/Cargo.toml --locked --release --target ${{ matrix.platform.target }}
+            - name: Build Client RISCV with Cargo or Cross
+              if: matrix.platform.target == 'riscv64gc-unknown-linux-musl'
+              uses: actions-rs/cargo@v1
+              env:
+                  RUSTFLAGS: "-Ctarget-feature=+crt-static"
+              with:
+                  use-cross: ${{ matrix.platform.use-cross }}
+                  command: build
+                  args: --manifest-path ./client/Cargo.toml --locked --release --target ${{ matrix.platform.target }}
+            - name: Wait
+              shell: bash
+              run: sleep $((RANDOM % 20 + 3))
+            - name: Release Client 1
+              id: release-client-1
+              uses: houseabsolute/actions-rust-release@v0
+              env:
+                  CRATE_NAME: open_remote_url
+              with:
+                  working-directory: ./client
+                  executable-name: open-remote-url
+                  target: ${{ matrix.platform.target }}
+                  extra-files: |-
+                      ../scripts/client/install/install.${{ matrix.platform.script-ext }}
+                      ../scripts/client/uninstall/uninstall.${{ matrix.platform.script-ext }}
+                      ./.env.example
+                      ../README.md
+                      ../README.ja_JP.md
+                      ../README.ja_EZ.md
+                      ../README.zh_CN.md
+                  _force-release-for-testing: true
+                  action-gh-release-parameters: |
+                      {
+                          "repository": "NaeCqde/open_remote_url",
+                          "token": "${{ secrets.GITHUB_TOKEN }}"
+                      }
+            - name: Wait
+              if: failure()
+              shell: bash
+              run: sleep $((RANDOM % 20 + 5))
+            - name: Release Client 2
+              if: failure()
+              id: release-client-2
+              uses: houseabsolute/actions-rust-release@v0
+              env:
+                  CRATE_NAME: open_remote_url
+              with:
+                  working-directory: ./client
+                  executable-name: open-remote-url
+                  target: ${{ matrix.platform.target }}
+                  extra-files: |-
+                      ../scripts/client/install/install.${{ matrix.platform.script-ext }}
+                      ../scripts/client/uninstall/uninstall.${{ matrix.platform.script-ext }}
+                      ./.env.example
+                      ../README.md
+                      ../README.ja_JP.md
+                      ../README.ja_EZ.md
+                      ../README.zh_CN.md
+                  _force-release-for-testing: true
+                  action-gh-release-parameters: |
+                      {
+                          "repository": "NaeCqde/open_remote_url",
+                          "token": "${{ secrets.GITHUB_TOKEN }}"
+                      }
+
+            - name: Build Host with Cargo or Cross
+              if: matrix.platform.target != 'riscv64gc-unknown-linux-musl'
+              uses: actions-rs/cargo@v1
+              with:
+                  use-cross: ${{ matrix.platform.use-cross }}
+                  command: build
+                  args: --manifest-path ./host/Cargo.toml --locked --release --target ${{ matrix.platform.target }}
+            - name: Build Host RISCV with Cargo or Cross
+              if: matrix.platform.target == 'riscv64gc-unknown-linux-musl'
+              uses: actions-rs/cargo@v1
+              env:
+                  RUSTFLAGS: "-Ctarget-feature=+crt-static"
+              with:
+                  use-cross: ${{ matrix.platform.use-cross }}
+                  command: build
+                  args: --manifest-path ./host/Cargo.toml --locked --release --target ${{ matrix.platform.target }}
+            - name: Wait
+              shell: bash
+              run: sleep $((RANDOM % 20 + 3))
+            - name: Release Host 1
+              id: release-host-1
+              uses: houseabsolute/actions-rust-release@v0
+              env:
+                  CRATE_NAME: open_remote_url_host
+              with:
+                  working-directory: ./host
+                  executable-name: open-remote-url-host
+                  target: ${{ matrix.platform.target }}
+                  extra-files: |-
+                      ../scripts/host/install/install-host.${{ matrix.platform.script-ext }}
+                      ../scripts/host/uninstall/uninstall-host.${{ matrix.platform.script-ext }}
+                      ./.env.example
+                      ../README.md
+                      ../README.ja_JP.md
+                      ../README.ja_EZ.md
+                      ../README.zh_CN.md
+                  _force-release-for-testing: true
+                  action-gh-release-parameters: |
+                      {
+                          "repository": "NaeCqde/open_remote_url",
+                          "token": "${{ secrets.GITHUB_TOKEN }}"
+                      }
+            - name: Wait
+              if: failure()
+              shell: bash
+              run: sleep $((RANDOM % 20 + 5))
+            - name: Release Host 2
+              id: release-host-2
+              uses: houseabsolute/actions-rust-release@v0
+              env:
+                  CRATE_NAME: open_remote_url_host
+              with:
+                  working-directory: ./host
+                  executable-name: open-remote-url-host
+                  target: ${{ matrix.platform.target }}
+                  extra-files: |-
+                      ../scripts/host/install/install-host.${{ matrix.platform.script-ext }}
+                      ../scripts/host/uninstall/uninstall-host.${{ matrix.platform.script-ext }}
+                      ./.env.example
+                      ../README.md
+                      ../README.ja_JP.md
+                      ../README.ja_EZ.md
+                      ../README.zh_CN.md
+                  _force-release-for-testing: true
+                  action-gh-release-parameters: |
+                      {
+                          "repository": "NaeCqde/open_remote_url",
+                          "token": "${{ secrets.GITHUB_TOKEN }}"
+                      }
