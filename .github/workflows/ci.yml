@@ -94,7 +94,7 @@ jobs:
               id: release-client-1
               uses: houseabsolute/actions-rust-release@v0
               env:
-                  CRATE_NAME: open_remote_url
+                  CRATE_NAME: open_remote_url-client
               with:
                   working-directory: .
                   executable-name: open-remote-url-client
@@ -122,7 +122,7 @@ jobs:
               id: release-client-2
               uses: houseabsolute/actions-rust-release@v0
               env:
-                  CRATE_NAME: open_remote_url
+                  CRATE_NAME: open_remote_url-client
               with:
                   working-directory: .
                   executable-name: open-remote-url-client
@@ -151,7 +151,7 @@ jobs:
               env:
                   CRATE_NAME: open_remote_url_host
               with:
-                  working-directory: host
+                  working-directory: .
                   executable-name: open-remote-url-host
                   target: ${{ matrix.platform.target }}
                   extra-files: |-
@@ -178,7 +178,7 @@ jobs:
               env:
                   CRATE_NAME: open_remote_url_host
               with:
-                  working-directory: host
+                  working-directory: .
                   executable-name: open-remote-url-host
                   target: ${{ matrix.platform.target }}
                   extra-files: |-

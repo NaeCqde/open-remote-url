@@ -5,11 +5,7 @@ use std::path::{Path, PathBuf};
 pub fn install() -> Result<(), Box<dyn std::error::Error>> {
     // 1. Stop daemon and unregister old integrations to unlock files
     let _ = stop_and_unregister();
-
     let current_exe = env::current_exe()?;
-    let current_dir = current_exe
-        .parent()
-        .ok_or("Cannot get current exe parent directory")?;
 
     #[cfg(target_os = "windows")]
     {
@@ -24,6 +20,9 @@ pub fn install() -> Result<(), Box<dyn std::error::Error>> {
 
     #[cfg(target_os = "macos")]
     {
+        let current_dir = current_exe
+            .parent()
+            .ok_or("Cannot get current exe parent directory")?;
         let target_exe = setup_macos_app_bundle(current_dir, &current_exe)?;
         let app_path = current_dir.join("OpenRemoteUrl.app");
         register_macos_app(&app_path);
@@ -199,7 +198,7 @@ fn stop_and_unregister() -> Result<(), Box<dyn std::error::Error>> {
             .status();
 
         let home = env::var("HOME")?;
-        let service_path = PathBuf::from(home)
+        let service_path = PathBuf::from(home.clone())
             .join(".config")
             .join("systemd")
             .join("user")
