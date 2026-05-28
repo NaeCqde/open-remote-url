@@ -1,6 +1,6 @@
 # Open Remote URL (簡易解説版)
 
-[English](README.md) | [日本語](README.ja_JP.md) | 日本語 (非技術者向け) | [简体中文](README.zh_CN.md)
+[English](README.md) | [简体中文](README.zh_CN.md) | [日本語 (原文)](README.ja_JP.md) | 日本語 (非技術者向け)
 
 > 💡 **プロジェクトの開発について**
 > このプロジェクトの大部分は、AIモデル **Gemini 3.5 Flash** によって開発されました。詳細は[プロジェクトの開発について](#プロジェクトの開発について)をご覧ください。
@@ -15,9 +15,9 @@
 - [なぜこれが便利なの？（具体例）](#なぜこれが便利なの具体例)
 - [どうやって動くの？（仕組み）](#どうやって動くの仕組み)
 - [環境設定](#環境設定)
-- [インストール](#インストール)
+- [インストール（PCをつけた時に自動で起動するようにする）](#インストールpcをつけた時に自動で起動するようにする)
 - [ステータス確認](#ステータス確認)
-- [アンインストール](#アンインストール)
+- [アンインストール（PCをつけた時の自動起動を止める）](#アンインストールpcをつけた時の自動起動を止める)
 - [プロジェクトの開発について](#プロジェクトの開発について)
 
 ---
@@ -27,7 +27,7 @@
 通常、仮想環境（Docker, VM）の内部や、別の配信用・ゲーム用PCなどの「サブPC」でプログラミングや操作をしているとき、以下のような問題が起こります。
 
 1. ログインや認証をしようとすると、ブラウザが勝手に開くが、サブPC側のブラウザにはログイン情報が入っていないため、毎回ログインし直す必要がある。
-2. コマンドライン（WranglerやSupabaseなど）のログイン時、認証が終わった後に `localhost:8976` のような特定のポートにデータを返す仕組みがあるが、ブラウザを開いたPCと実際に動いているPCが別々であるため、認証データを開発環境に戻せずログインが途中で止まってしまう。
+2. 開発ツール（Dockerや仮想システム）でログイン用のURLを開くけれど、認証が終わった後の結果データがサブPC側に戻ってこないため、ログインが途中で止まってしまう。
 
 **Open Remote URL**は、サブ環境でURLを開こうとする動作をキャッチし、**あなたのメインPCのブラウザで自動的に表示させつつ、一時的に通信の通り道（プロキシ）を自動で作成してつなぐ**ことで、これらの問題をすべて解消します。
 
@@ -59,9 +59,30 @@
 
 ## 環境設定
 
-実行ファイルと同じディレクトリにある `.env` ファイルに、ロボットたちの連絡先と合言葉を書いておきます。
+設定は、PCシステムの設定（環境変数）や、設定ファイル（`.env`）から読み込まれます。
 
-### ホスト設定（メインPC側: `host/.env`）
+### 設定ファイル（.env）が読み込まれる場所
+
+プログラムが実行されると、次の順番で設定ファイルを探して読み込みます。
+
+1. **OSごとの決まったフォルダ**（インストールした後はここから読み込まれます）
+   - **Windows**: `%APPDATA%\open-remote-url\<clientまたはhost>\.env`
+   - **macOS**: `Applications` フォルダ内の `OpenRemoteURLClient.app`（または `OpenRemoteURLHost.app`）フォルダの直下の `.env`
+   - **Linux**: `~/.config/open-remote-url/<clientまたはhost>/.env`
+2. **プログラムを実行したフォルダ**
+   - 上の決まったフォルダにファイルがない場合は、プログラムを実行したフォルダ（またはその上のフォルダ）にある `.env` ファイルを読み込みます（手動で動かすときなどに使います）。
+
+※PCシステムの設定と `.env` ファイルの両方で同じ設定がある場合は、 **`.env` ファイルの内容が優先（上書き）されます**。
+
+### インストールするときの動き
+
+ダウンロードしたフォルダには、あらかじめ `inactive.env` という名前のテンプレートファイルが入っています。
+インストール用のプログラムを実行すると、この `inactive.env` が自動的に上記の「OSごとの決まったフォルダ」へ `.env` という名前に変わって移動（コピーされた後、元のファイルは消去）されます。
+
+- **インストールする前に**、フォルダの中にある `inactive.env` をメモ帳などで開き、自分の環境に合わせて設定を書き換えて保存しておいてください。
+- もしフォルダの中に `inactive.env` がない状態でインストールを行った場合は、デフォルトの設定が入った `.env` ファイルが自動的に作成されます。
+
+### ホスト設定（メインPC側: `host/inactive.env`）
 
 ```env
 HOST=0.0.0.0
@@ -73,7 +94,7 @@ PASSPHRASE=二人だけの合言葉
 - `PORT`: メインPCが接続を待つポート番号（デフォルト: `8080`）
 - `PASSPHRASE`: クライアントPCと一致させる合言葉
 
-### クライアント設定（サブPCや仮想環境側: `client/.env`）
+### クライアント設定（サブPCや仮想環境側: `client/inactive.env`）
 
 ```env
 HOST_URL=http://<ホストのIPアドレス>:8080
@@ -91,28 +112,27 @@ PASSPHRASE=二人だけの合言葉
 
 ## インストール
 
-このインストーラーは、**「今あるファイルを別のフォルダに移動しません」**。あなたがファイルを置いたその場所を基準にして、OSのスタートアップ（自動起動システム）に登録します。
+インストーラーを実行すると、プログラムをOSのスタートアップ（自動起動システム）に登録し、**PCをつけた時（起動時）に自動でバックグラウンド実行されるように設定**します。
 
-そのため、インストールを実行する前に、実行ファイルを**「ずっと置いておくお気に入りのフォルダ」**に移動させておいてください。
+**※注意※**
+- **インストールを行う前に、フォルダ内にある `inactive.env` をメモ帳などで開き、設定を書き換えて保存してください。**
 
-登録は以下のスクリプトを実行するだけで完了します。
+自動起動の設定をするには、フォルダの中にあるOSに合わせたスクリプト（プログラム）を実行します：
+- Windows: `install.bat` を実行
+- macOS: `install.command` を実行
+- Linux: `./install.sh` を実行
 
-- **ホスト側（メインPC）**: フォルダ内のOSに対応するスクリプトを実行します。
-    - Windows: `install-host.bat` を実行
-    - macOS: `install-host.command` を実行
-    - Linux: `./install-host.sh` を実行
-- **クライアント側（サブPC/仮想環境）**: フォルダ内のOSに対応するスクリプトを実行します。
-    - Windows: `install-client.bat` を実行
-    - macOS: `install-client.command` を実行
-    - Linux: `./install-client.sh` を実行
+また、インストールを実行すると、設定を確認するための `config` スクリプトや、元に戻すための `uninstall` スクリプトが、自動的にインストール先フォルダ（例: macOSでは `/Users/<ユーザー名>/Applications/OpenRemoteURLClient.app/` の直下）に作成・配置されます。
 
-_クライアント側のOS設定で、「デフォルトのWebブラウザ」に **Open Remote URL** を選ぶのを忘れないでください。_
+元のフォルダにあるスクリプトはインストール後も問題なく使えます。
+
+_インストールが終わったら、クライアントPCの設定で「デフォルトのブラウザ（一番最初に開くブラウザ）」として **Open Remote URL** を選んでください。_
 
 ---
 
 ## ステータス確認
 
-実行ファイルを引数なしで実行すると、現在の登録状況と稼働状況が画面に出力されます。
+プログラムのファイルを**そのまま実行する**と、現在の登録状況と稼働状況が画面に出力されます。インストールが完了している場合、実行ファイルの配置先と設定ファイルのパスも追加で表示されます。
 
 - **ホスト側**:
 
@@ -121,15 +141,18 @@ $ ./open-remote-url-host
 Open Remote URL - Host Status
 
 [Status]
-- Installed: Yes (インストールされています)
-- Running:   Yes (稼働中です)
+- Installed:  Yes (インストールされています)
+- Running:    Yes (稼働中です)
+- HOST:       http://0.0.0.0:8080
+- Executable: /Users/<ユーザー名>/Applications/OpenRemoteURLHost.app/Contents/MacOS/open-remote-url-host
+- Config:     /Users/<ユーザー名>/Applications/OpenRemoteURLHost.app/.env
 
 [Usage]
 - To install / start host:
-  Run install-host.command in the release folder
+  Run install.command in the release folder
 
 - To uninstall / clean registrations:
-  Run uninstall-host.command in the release folder
+  Run uninstall.command in the release folder
 ```
 
 - **クライアント側**:
@@ -139,33 +162,31 @@ $ ./open-remote-url-client
 Open Remote URL - Client Status
 
 [Status]
-- Installed: Yes (インストールされています)
-- Running:   Yes (稼働中です)
-- Host:      http://<host_ip>:8080
-- Client:    http://0.0.0.0:3000
+- Installed:  Yes (インストールされています)
+- Running:    Yes (稼働中です)
+- HOST:       http://localhost:8080/
+- CLIENT:     http://0.0.0.0:3000
+- Executable: /Users/<ユーザー名>/Applications/OpenRemoteURLClient.app/Contents/MacOS/open-remote-url-client
+- Config:     /Users/<ユーザー名>/Applications/OpenRemoteURLClient.app/.env
 
 [Usage]
 - To install / start client:
-  Run install-client.bat in the release folder
+  Run install.command in the release folder
 
 - To uninstall / clean registrations:
-  Run uninstall-client.bat in the release folder
+  Run uninstall.command in the release folder
 ```
 
 ---
 
-## アンインストール
+## アンインストール（PCをつけた時の自動起動を止める）
 
-不要になったら、自動起動設定やブラウザ関連付けなどの登録情報をきれいに削除します（元の実行ファイルそのものは削除されずに残ります）。
+使わなくなったら、PCをつけた時の自動起動の設定やデフォルトブラウザの登録をきれいに削除します。
 
-- **ホスト側**: フォルダ内のOSに対応するスクリプトを実行します。
-    - Windows: `uninstall-host.bat` を実行
-    - macOS: `uninstall-host.command` を実行
-    - Linux: `./uninstall-host.sh` を実行
-- **クライアント側**: フォルダ内のOSに対応するスクリプトを実行します。
-    - Windows: `uninstall-client.bat` を実行
-    - macOS: `uninstall-client.command` を実行
-    - Linux: `./uninstall-client.sh` を実行
+アンインストールを実行するには、フォルダの中（またはインストールした場所）にあるOSに対応したスクリプトを実行します：
+- Windows: `uninstall.bat` を実行
+- macOS: `uninstall.command` を実行
+- Linux: `./uninstall.sh` を実行
 
 ---
 

@@ -1,6 +1,9 @@
 # Open Remote URL
 
-English | [日本語](README.ja_JP.md) | [日本語 (非技術者向け)](README.ja_EZ.md) | [简体中文](README.zh_CN.md)
+English | [简体中文](README.zh_CN.md) | [日本語 (Original)](README.ja_JP.md) | [日本語 (Non-technical)](README.ja_EZ.md)
+
+> ⚠️ **Note on Translations**
+> Since this document was AI-translated from Japanese, some parts may be inaccurate or difficult to understand. If you find any parts unclear, please translate the [Japanese (Original) version](README.ja_JP.md) and refer to it instead.
 
 > 💡 **About Project Development**
 > Most of this project was developed by the AI model **Gemini 3.5 Flash**. For details, see [About Project Development](#about-project-development).
@@ -27,8 +30,8 @@ This tool was born from the developer's strong personal need: "When logging into
 
 - [How It Works](#how-it-works)
 - [Configuration](#configuration)
-    - [Host Config (host/.env)](#host-config-hostenv)
-    - [Client Config (client/.env)](#client-config-clientenv)
+    - [Host Config (host/inactive.env)](#host-config-hostinactiveenv)
+    - [Client Config (client/inactive.env)](#client-config-clientinactiveenv)
 - [Installation](#installation)
 - [Status Check](#status-check)
 - [Uninstallation](#uninstallation)
@@ -56,11 +59,30 @@ Download the `.zip` file matching your OS and architecture.
 
 ## Configuration
 
-Configuration is loaded from system environment variables and from the `.env` file located in the same directory as the executable (if both are defined, the `.env` file takes precedence).
+Configuration is loaded from system environment variables and the `.env` file.
 
-The distribution package (`.zip`) includes a `.env.example` template. Rename it to `.env` and fill in your settings before use.
+### Priority and Configuration File Search Paths
 
-### Host Config (`host/.env`)
+At runtime, the configuration file (`.env`) is searched and loaded in the following order of priority:
+
+1. **OS-Specific Configuration Folder** (Loaded from here once installed)
+   - **Windows**: `%APPDATA%\open-remote-url\<client|host>\.env`
+   - **macOS**: `/Users/<user>/Applications/OpenRemoteURLClient.app/.env` (or `OpenRemoteURLHost.app/.env`)
+   - **Linux**: `~/.config/open-remote-url/<client|host>/.env`
+2. **Current Working Folder or its Parent Folders**
+   - If the `.env` file does not exist in the OS-specific folder above, the program looks for a `.env` file in the folder where it was executed (or its parent folders). This is useful during development or when running the tool manually.
+
+*Note: If a setting is defined in both system environment variables and the `.env` file, the value in the **`.env` file takes precedence (overrides)**.*
+
+### Installation Behavior
+
+The distribution package includes an `inactive.env` template.
+Running the installer script automatically moves the `inactive.env` from the installation folder to the OS-specific configuration folder and renames it to `.env` (copied, then the original `inactive.env` is deleted).
+
+- **Before running the installer**, please open the `inactive.env` file in the package folder using a text editor, customize the settings for your environment, and save it.
+- If the installer is run without `inactive.env` present in the folder, a default `.env` file containing default configuration values will be generated automatically in the configuration folder.
+
+### Host Config (`host/inactive.env`)
 
 ```env
 HOST=0.0.0.0
@@ -72,7 +94,7 @@ PASSPHRASE=some-shared-secret
 - `PORT`: Listening port (default: `8080`)
 - `PASSPHRASE`: Shared passphrase
 
-### Client Config (`client/.env`)
+### Client Config (`client/inactive.env`)
 
 ```env
 HOST_URL=http://<host_ip>:8080
@@ -92,18 +114,17 @@ PASSPHRASE=some-shared-secret
 
 The installer registers the current executable's folder with the OS's standard service system and configures autostart.
 **⚠ Place the folder in your desired permanent location before installing.**
+**⚠ Also, before running the installer, open `inactive.env` inside the folder in a text editor, write your settings, and save the file.**
 **If you missed this notice, redo the installation steps.**
 
-To register and start the daemons:
+To register and start the daemons (the script automatically detects whether client or host executable is present using wildcards):
 
-- **Host**: Run the script matching your OS inside the release folder:
-    - Windows: Run `install-host.bat`
-    - macOS: Run `install-host.command`
-    - Linux: Run `./install-host.sh`
-- **Client**: Run the script matching your OS inside the release folder:
-    - Windows: Run `install-client.bat`
-    - macOS: Run `install-client.command`
-    - Linux: Run `./install-client.sh`
+Run the script matching your OS inside the release folder:
+- Windows: Run `install.bat`
+- macOS: Run `install.command`
+- Linux: Run `./install.sh`
+
+Additionally, you can find the OS-specific `config.<ext>` and `uninstall.<ext>` scripts in your release folder. During the installation phase, the installer also copies these scripts (e.g. `config.command`, `uninstall.command` on macOS) directly to the target installation directory (e.g. `/Users/<user>/Applications/OpenRemoteURLClient.app/` on macOS) for convenience.
 
 _In your Client OS settings, select **Open Remote URL** as the default web browser._
 
@@ -111,7 +132,7 @@ _In your Client OS settings, select **Open Remote URL** as the default web brows
 
 ## Verification
 
-Running either binary without arguments displays its current autostart registration status and daemon status:
+Running either binary without arguments displays its current autostart registration status and daemon status. When installed, it also prints the target executable and configuration file paths:
 
 - **Host**:
 
@@ -120,15 +141,18 @@ $ ./open-remote-url-host
 Open Remote URL - Host Status
 
 [Status]
-- Installed: Yes
-- Running:   Yes
+- Installed:  Yes
+- Running:    Yes
+- HOST:       http://0.0.0.0:8080
+- Executable: /Users/qwo/Applications/OpenRemoteURLHost.app/Contents/MacOS/open-remote-url-host
+- Config:     /Users/qwo/Applications/OpenRemoteURLHost.app/.env
 
 [Usage]
 - To install / start host:
-  Run install-host.command in the release folder
+  Run install.command in the release folder
 
 - To uninstall / clean registrations:
-  Run uninstall-host.command in the release folder
+  Run uninstall.command in the release folder
 ```
 
 - **Client**:
@@ -140,15 +164,17 @@ Open Remote URL - Client Status
 [Status]
 - Installed: Yes
 - Running:   Yes
-- Host:      http://<host_ip>:8080
-- Client:    http://0.0.0.0:3000
+- HOST:      http://localhost:8080/
+- CLIENT:    http://0.0.0.0:3000
+- Executable: /Users/qwo/Applications/OpenRemoteURLClient.app/Contents/MacOS/open-remote-url-client
+- Config:     /Users/qwo/Applications/OpenRemoteURLClient.app/.env
 
 [Usage]
 - To install / start client:
-  Run install-client.bat in the release folder
+  Run install.command in the release folder
 
 - To uninstall / clean registrations:
-  Run uninstall-client.bat in the release folder
+  Run uninstall.command in the release folder
 ```
 
 ---
@@ -157,14 +183,10 @@ Open Remote URL - Client Status
 
 To completely remove autostart registrations, browser associations, plist files, and systemd user service settings and terminate the background process:
 
-- **Host**: Run the script matching your OS inside the release folder:
-    - Windows: Run `uninstall-host.bat`
-    - macOS: Run `uninstall-host.command`
-    - Linux: Run `./uninstall-host.sh`
-- **Client**: Run the script matching your OS inside the release folder:
-    - Windows: Run `uninstall-client.bat`
-    - macOS: Run `uninstall-client.command`
-    - Linux: Run `./uninstall-client.sh`
+Run the script matching your OS inside the release folder (or inside your installation path):
+- Windows: Run `uninstall.bat`
+- macOS: Run `uninstall.command`
+- Linux: Run `./uninstall.sh`
 
 ---
 

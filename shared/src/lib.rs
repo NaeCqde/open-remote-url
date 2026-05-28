@@ -1,4 +1,5 @@
 pub mod config;
+pub mod installer;
 
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -39,4 +40,3 @@ pub struct PortsRequest {
     pub action: PortAction,
     pub relay_url: String,
 }
-

@@ -100,9 +100,10 @@ jobs:
                   executable-name: open-remote-url-client
                   target: ${{ matrix.platform.target }}
                   extra-files: |-
-                      scripts/client/install/install-client.${{ matrix.platform.script-ext }}
-                      scripts/client/uninstall/uninstall-client.${{ matrix.platform.script-ext }}
-                      client/.env.example
+                      scripts/install/install.${{ matrix.platform.script-ext }}
+                      scripts/uninstall/uninstall.${{ matrix.platform.script-ext }}
+                      scripts/config/config.${{ matrix.platform.script-ext }}
+                      client/inactive.env
                       README.md
                       README.ja_JP.md
                       README.ja_EZ.md
@@ -128,9 +129,10 @@ jobs:
                   executable-name: open-remote-url-client
                   target: ${{ matrix.platform.target }}
                   extra-files: |-
-                      scripts/client/install/install-client.${{ matrix.platform.script-ext }}
-                      scripts/client/uninstall/uninstall-client.${{ matrix.platform.script-ext }}
-                      client/.env.example
+                      scripts/install/install.${{ matrix.platform.script-ext }}
+                      scripts/uninstall/uninstall.${{ matrix.platform.script-ext }}
+                      scripts/config/config.${{ matrix.platform.script-ext }}
+                      client/inactive.env
                       README.md
                       README.ja_JP.md
                       README.ja_EZ.md
@@ -155,9 +157,10 @@ jobs:
                   executable-name: open-remote-url-host
                   target: ${{ matrix.platform.target }}
                   extra-files: |-
-                      scripts/host/install/install-host.${{ matrix.platform.script-ext }}
-                      scripts/host/uninstall/uninstall-host.${{ matrix.platform.script-ext }}
-                      host/.env.example
+                      scripts/install/install.${{ matrix.platform.script-ext }}
+                      scripts/uninstall/uninstall.${{ matrix.platform.script-ext }}
+                      scripts/config/config.${{ matrix.platform.script-ext }}
+                      host/inactive.env
                       README.md
                       README.ja_JP.md
                       README.ja_EZ.md
@@ -182,9 +185,10 @@ jobs:
                   executable-name: open-remote-url-host
                   target: ${{ matrix.platform.target }}
                   extra-files: |-
-                      scripts/host/install/install-host.${{ matrix.platform.script-ext }}
-                      scripts/host/uninstall/uninstall-host.${{ matrix.platform.script-ext }}
-                      host/.env.example
+                      scripts/install/install.${{ matrix.platform.script-ext }}
+                      scripts/uninstall/uninstall.${{ matrix.platform.script-ext }}
+                      scripts/config/config.${{ matrix.platform.script-ext }}
+                      host/inactive.env
                       README.md
                       README.ja_JP.md
                       README.ja_EZ.md

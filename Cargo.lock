@@ -670,7 +670,6 @@ version = "0.1.0"
 dependencies = [
  "axum",
  "base64",
- "dotenvy",
  "env_logger",
  "listeners",
  "log",
@@ -687,7 +686,6 @@ version = "0.1.0"
 dependencies = [
  "axum",
  "base64",
- "dotenvy",
  "env_logger",
  "log",
  "open",
@@ -952,6 +950,8 @@ dependencies = [
 name = "shared"
 version = "0.1.0"
 dependencies = [
+ "dotenvy",
+ "log",
  "serde",
 ]
 
