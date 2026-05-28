@@ -73,25 +73,25 @@ async fn main() -> Result<(), Box<dyn Error>> {
     shared::config::load_env("client");
 
     let args: Vec<String> = env::args().collect();
+
+    #[cfg(any(target_os = "windows", target_os = "macos", target_os = "linux"))]
+    {
+        let should_show_gui = args.len() < 2 && shared::utils::is_double_clicked();
+        if should_show_gui {
+            shared::gui::run_gui("client");
+            exit(0);
+        } else {
+            #[cfg(target_os = "windows")]
+            shared::utils::attach_console();
+        }
+    }
+
     if args.len() >= 2 && args[1] == "--config" {
         let _ = shared::config::show_config("client");
         exit(0);
     }
 
     if args.len() < 2 {
-        #[cfg(any(target_os = "windows", target_os = "macos", target_os = "linux"))]
-        {
-            let should_show_gui = if cfg!(target_os = "windows") {
-                true // GUI subsystem app on Windows always shows GUI on zero arguments
-            } else {
-                shared::utils::is_double_clicked()
-            };
-
-            if should_show_gui {
-                shared::gui::run_gui("client");
-                exit(0);
-            }
-        }
         print_status();
         exit(0);
     }

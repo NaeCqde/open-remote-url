@@ -39,3 +39,63 @@ pub fn detach_console() {
         }
     }
 }
+
+pub fn attach_console() {
+    #[cfg(target_os = "windows")]
+    {
+        extern "system" {
+            fn AttachConsole(dwProcessId: u32) -> i32;
+            fn GetStdHandle(nStdHandle: u32) -> *mut std::ffi::c_void;
+            fn SetStdHandle(nStdHandle: u32, hHandle: *mut std::ffi::c_void) -> i32;
+            fn CreateFileA(
+                lpFileName: *const u8,
+                dwDesiredAccess: u32,
+                dwShareMode: u32,
+                lpSecurityAttributes: *mut std::ffi::c_void,
+                dwCreationDisposition: u32,
+                dwFlagsAndAttributes: u32,
+                hTemplateFile: *mut std::ffi::c_void,
+            ) -> *mut std::ffi::c_void;
+        }
+        unsafe {
+            if AttachConsole(0xFFFFFFFF) != 0 {
+                const STD_OUTPUT_HANDLE: u32 = 0xFFFF_FFF5; // -11
+                const STD_ERROR_HANDLE: u32 = 0xFFFF_FFF4;  // -12
+                const STD_INPUT_HANDLE: u32 = 0xFFFF_FFF6;  // -10
+                
+                const GENERIC_READ: u32 = 0x80000000;
+                const GENERIC_WRITE: u32 = 0x40000000;
+                const FILE_SHARE_WRITE: u32 = 2;
+                const FILE_SHARE_READ: u32 = 1;
+                const OPEN_EXISTING: u32 = 3;
+                
+                let h_out = CreateFileA(
+                    "CONOUT$\0".as_ptr(),
+                    GENERIC_WRITE,
+                    FILE_SHARE_WRITE,
+                    std::ptr::null_mut(),
+                    OPEN_EXISTING,
+                    0,
+                    std::ptr::null_mut(),
+                );
+                if h_out as isize != -1 {
+                    SetStdHandle(STD_OUTPUT_HANDLE, h_out);
+                    SetStdHandle(STD_ERROR_HANDLE, h_out);
+                }
+                
+                let h_in = CreateFileA(
+                    "CONIN$\0".as_ptr(),
+                    GENERIC_READ,
+                    FILE_SHARE_READ,
+                    std::ptr::null_mut(),
+                    OPEN_EXISTING,
+                    0,
+                    std::ptr::null_mut(),
+                );
+                if h_in as isize != -1 {
+                    SetStdHandle(STD_INPUT_HANDLE, h_in);
+                }
+            }
+        }
+    }
+}

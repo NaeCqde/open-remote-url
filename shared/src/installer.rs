@@ -133,11 +133,11 @@ pub fn install(app_type: &str) -> Result<(), Box<dyn std::error::Error>> {
     {
         let home = env::var("HOME")?;
 
-        copy_env_file(app_type)?;
-
         let apps_dir = PathBuf::from(home).join("Applications");
         fs::create_dir_all(&apps_dir)?;
         let target_exe = setup_macos_app_bundle(app_type, &apps_dir, &current_exe)?;
+
+        copy_env_file(app_type)?;
 
         let app_name = if app_type == "client" {
             "OpenRemoteURLClient"

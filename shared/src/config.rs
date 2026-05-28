@@ -67,19 +67,13 @@ pub fn open_dir_in_file_manager(path: &Path) -> Result<(), Box<dyn std::error::E
     }
     #[cfg(target_os = "macos")]
     {
-        // If the path is (or is inside) a .app bundle, `open` would launch the app.
-        // Instead, use `open -R` to reveal it in Finder, or open the parent directory.
         let path_str = path.to_string_lossy();
         if path_str.contains(".app") {
-            // Find the first ancestor that is NOT inside a .app bundle
-            let mut reveal_path = path.to_path_buf();
-            for ancestor in path.ancestors() {
-                let name = ancestor.to_string_lossy();
-                if !name.contains(".app") {
-                    reveal_path = ancestor.to_path_buf();
-                    break;
-                }
-            }
+            let reveal_path = if path.extension().map_or(false, |ext| ext == "app") {
+                path.join("Contents")
+            } else {
+                path.to_path_buf()
+            };
             std::process::Command::new("open")
                 .arg(&reveal_path)
                 .spawn()?;
