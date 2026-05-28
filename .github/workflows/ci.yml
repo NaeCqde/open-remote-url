@@ -70,7 +70,7 @@ jobs:
             - name: Build Client & Host with Cargo post-build (macOS only)
               if: contains(matrix.platform.target, 'apple-darwin')
               run: |
-                cargo post build --package open_remote_url --locked --release --target ${{ matrix.platform.target }}
+                cargo post build --package open_remote_url_client --locked --release --target ${{ matrix.platform.target }}
                 cargo post build --package open_remote_url_host --locked --release --target ${{ matrix.platform.target }}
 
             - name: Build Client & Host with Cargo or Cross (non-macOS)
@@ -200,7 +200,7 @@ jobs:
                       }
 
             - name: Stage Host Release Files (macOS only)
-              if: !cancelled() && contains(matrix.platform.target, 'apple-darwin')
+              if: "!cancelled() && contains(matrix.platform.target, 'apple-darwin')"
               run: |
                 rm -rf OpenRemoteURLClient.app
                 rm -f inactive.env

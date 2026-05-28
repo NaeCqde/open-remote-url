@@ -6,7 +6,7 @@
 > 本文档由日语经 AI 翻译而来，部分内容可能不够准确或难以理解。如果您发现有任何表述不清的地方，请翻译并参考[日文原文](README.ja_JP.md)。
 
 > 💡 **关于项目开发**
-> 本项目的大部分内容均由 AI 模型 **Gemini 3.5 Flash** 开发。详情请参阅[关于项目开发](#关于项目开发)。
+> 本项目的大部分内容均由 AI 模型 **Gemini**（各種版本）开发。详情请参阅[关于项目开发](#关于项目开发)。
 
 将 Web 网页的显示和 OAuth 登录认证转发给另一台设备（主机）的浏览器，进行统一管理的系统。
 
@@ -126,15 +126,24 @@ PASSPHRASE=some-shared-secret
   - **桌面环境（带 GUI）**：双击运行文件（`open-remote-url-client` 或 `open-remote-url-host`）打开 GUI 控制面板，然后点击 **[Install Service]** 按钮。
   - **CUI/服务器环境（无 GUI）**：运行发布文件夹中的安装脚本：`./install.sh`
 
-_请在客户端操作系统的设置中，将 **Open Remote URL** 选择为默认 Web 浏览器。_
+_安装完成后，请在客户端操作系统的设置中，将 **Open Remote URL Client** 选择为默认 Web 浏览器：_
+- **Windows**：设置 → 应用 → 默认应用 → Web 浏览器
+- **macOS**：系统设置 → 桌面与 Dock（或「通用」）→ 默认 Web 浏览器 → **Open Remote URL Client**
+- **Linux**：`xdg-settings set default-web-browser open-remote-url-client.desktop`（或通过桌面环境的设置更改）
 
 ---
 
 ## 状态确认
 
-不带任何参数运行任一可执行文件，即可输出当前自动启动注册状态和守护进程运行状态。安装完成后，还会额外显示可执行文件及配置文件的目标路径：
+双击应用程序包（或可执行文件）将打开 **GUI 控制面板**，显示：
+- 安装状态（Installed / Not Installed）
+- 守护进程运行状态（Running / Stopped）—点击安装按鈕后自动更新
+- 可执行文件路径和配置文件路径
+- 按鈕：**Install Service**（安装）、**Uninstall Service**（卸载）、**Open Settings Folder**（打开设置文件夹）
 
-- **主机侧**：
+您也可以从命令行运行二进制文件进行快速状态检查：
+
+- **主机側**：
 
 ```bash
 $ ./open-remote-url-host
@@ -144,8 +153,8 @@ Open Remote URL - Host Status
 - Installed:  Yes
 - Running:    Yes
 - HOST:       http://0.0.0.0:8080
-- Executable: /Users/qwo/Applications/OpenRemoteURLHost.app/Contents/MacOS/open-remote-url-host
-- Config:     /Users/qwo/Applications/OpenRemoteURLHost.app/.env
+- Executable: /Users/<username>/Applications/OpenRemoteURLHost.app/Contents/MacOS/open-remote-url-host
+- Config:     /Users/<username>/Applications/OpenRemoteURLHost.app/.env
 
 [Usage]
 - To install / start host:
@@ -166,8 +175,8 @@ Open Remote URL - Client Status
 - Running:    Yes
 - HOST:       http://localhost:8080/
 - CLIENT:     http://0.0.0.0:3000
-- Executable: /Users/qwo/Applications/OpenRemoteURLClient.app/Contents/MacOS/open-remote-url-client
-- Config:     /Users/qwo/Applications/OpenRemoteURLClient.app/.env
+- Executable: /Users/<username>/Applications/OpenRemoteURLClient.app/Contents/MacOS/open-remote-url-client
+- Config:     /Users/<username>/Applications/OpenRemoteURLClient.app/.env
 
 [Usage]
 - To install / start client:
@@ -195,12 +204,12 @@ Open Remote URL - Client Status
 
 本项目的大部分内容（包括源码实现、重构和文档编写）由具备高超设计、编码和组织能力的 AI 模型 **Gemini 3.5 Flash** 开发和整理。
 
-此外，系统架构图（流程图）是以 iPad 无边记（Freeform）上绘制的手写草图为基础，通过输入给 **Gemini 3.1 Flash（多模态功能）** 进行文字清书、调整框架布局和整体版面优化而制作完成的（期间经过了反复的提示词微调与尝试）。
+此外，系统架构图（流程图）是以 iPad 无边记（Freeform）上绘制的手写草图为基础，通过输入给 **Gemini 3.1 Flash（多模态功能）** 进行文字清书、调整框架布局和整体版面优化而制作完成（期间经过了反复的提示词微调与尝试）。
 
 这些 AI 模型可以在 Google 提供的 Antigravity 和 Antigravity IDE 中免费使用。
-本项目使用了 Google One AI Pro 计划（每月约 20 美元），用时约 8 小时便已完成。
+本项目使用了 Google One AI Pro 计划（每月约20 美元）完成。
 
 - **开发开始（首个提示词）**：2026/05/26 15:35 JST
-- **开发完成（最后一个提示词）**：2026/05/26 23:40 JST
+- **最后更新**：2026/05/29 JST
 
-此外，由于当时是在一边看动漫一边进行提示词输入和代码验证，且 Gemini 的响应速度极快，因此如果专注于开发，实际完成时间本来可以更短。
+此外，由于当时是在一边看动漫一边进行提示词输入和代码验证，且 Gemini 的响应速度极快，因此如果专心于开发，实际上可以在更短的时间内完成。

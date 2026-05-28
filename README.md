@@ -128,13 +128,22 @@ To register and start the daemons:
   - **Desktop Environment (with GUI)**: Double-click the executable (`open-remote-url-client` or `open-remote-url-host`) to open the GUI Control Panel, then click the **Install Service** button.
   - **CLI/Headless Environment (without GUI)**: Run the setup script in the release folder: `./install.sh`
 
-_In your Client OS settings, select **Open Remote URL** as the default web browser._
+_After installation, set **Open Remote URL Client** as the default web browser in your Client OS settings:_
+- **Windows**: Settings → Apps → Default apps → Web browser
+- **macOS**: System Settings → Desktop & Dock (or General) → Default web browser → **Open Remote URL Client**
+- **Linux**: `xdg-settings set default-web-browser open-remote-url-client.desktop` (or use your DE's settings)
 
 ---
 
 ## Verification
 
-Running either binary without arguments displays its current autostart registration status and daemon status. When installed, it also prints the target executable and configuration file paths:
+Double-clicking the app bundle (or executable) opens the **GUI Control Panel**, which shows:
+- Installation status (Installed / Not Installed)
+- Daemon running status (Running / Stopped) — updates automatically after pressing Install
+- Executable path and configuration file path
+- Buttons: **Install Service**, **Uninstall Service**, **Open Settings Folder**
+
+You can also run the binary from the command line for a quick status check:
 
 - **Host**:
 
@@ -146,8 +155,8 @@ Open Remote URL - Host Status
 - Installed:  Yes
 - Running:    Yes
 - HOST:       http://0.0.0.0:8080
-- Executable: /Users/qwo/Applications/OpenRemoteURLHost.app/Contents/MacOS/open-remote-url-host
-- Config:     /Users/qwo/Applications/OpenRemoteURLHost.app/.env
+- Executable: /Users/<username>/Applications/OpenRemoteURLHost.app/Contents/MacOS/open-remote-url-host
+- Config:     /Users/<username>/Applications/OpenRemoteURLHost.app/.env
 
 [Usage]
 - To install / start host:
@@ -164,12 +173,12 @@ $ ./open-remote-url-client
 Open Remote URL - Client Status
 
 [Status]
-- Installed: Yes
-- Running:   Yes
-- HOST:      http://localhost:8080/
-- CLIENT:    http://0.0.0.0:3000
-- Executable: /Users/qwo/Applications/OpenRemoteURLClient.app/Contents/MacOS/open-remote-url-client
-- Config:     /Users/qwo/Applications/OpenRemoteURLClient.app/.env
+- Installed:  Yes
+- Running:    Yes
+- HOST:       http://localhost:8080/
+- CLIENT:     http://0.0.0.0:3000
+- Executable: /Users/<username>/Applications/OpenRemoteURLClient.app/Contents/MacOS/open-remote-url-client
+- Config:     /Users/<username>/Applications/OpenRemoteURLClient.app/.env
 
 [Usage]
 - To install / start client:
@@ -200,9 +209,9 @@ Most of this project (source code implementation, refactoring, and documentation
 Additionally, the system architecture diagram (flowchart) was created by feeding a handwritten sketch drawn on iPad Freeform into **Gemini 3.1 Flash (Multimodal Feature)**, which neatly transcribed the text and adjusted the box placement and overall layout (with considerable trial and error in prompt tuning).
 
 These AI models are available for free on Antigravity and Antigravity IDE provided by Google.
-This project was completed in approx. 8 hours using the Google One AI Pro plan (approx. $20 / month).
+This project was completed using the Google One AI Pro plan (approx. $20 / month).
 
 - **Development Started (First Prompt)**: 2026/05/26 15:35 JST
-- **Development Completed (Last Prompt)**: 2026/05/26 23:40 JST
+- **Last Updated**: 2026/05/29 JST
 
 Note: Since the prompt input and code verification were done in parallel while watching anime, and Gemini's response was extremely fast, it could have been completed in an even shorter time if focused solely on development.

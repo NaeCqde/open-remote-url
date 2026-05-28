@@ -125,15 +125,22 @@ PASSPHRASE=some-shared-secret
   - **デスクトップ環境（GUIあり）の場合**: 実行ファイル（`open-remote-url-client` または `open-remote-url-host`）をダブルクリックしてGUIコントロールパネルを開き、**[Install Service]** ボタンをクリックします。
   - **CUI/サーバー環境（GUIなし）の場合**: リリースフォルダ内にあるセットアップスクリプトを実行します: `./install.sh`
 
-_インストール完了後、クライアント側OSの設定において、「デフォルトのWebブラウザ」として **Open Remote URL** を選択してください。_
+_インストール完了後、クライアント側OSの設定において、「デフォルトのWebブラウザ」として **Open Remote URL Client** を選択してください：_
+- **Windows**: 設定 → アプリ → 既定のアプリ → Web ブラウザ
+- **macOS**: システム設定 → デスクトップと Dock（または一般）→ デフォルトの Web ブラウザ → **Open Remote URL Client**
+- **Linux**: `xdg-settings set default-web-browser open-remote-url-client.desktop`（またはデスクトップ環境の設定から変更）
 
 ---
 
 ## ステータス確認
 
-いずれの実行ファイルも引数なしで実行すると、現在の自動起動の登録状況とデーモン起動状況が出力されます。
+アプリ（または実行ファイル）をダブルクリックすると、**GUIコントロールパネル**が開き、以下が確認できます：
+- インストール状況（Installed / Not Installed）
+- デーモン稼働状況（Running / Stopped） — インストールボタンを押した後に自動更新されます
+- 実行ファイルのパスと設定ファイルのパス
+- ボタン：**Install Service**（インストール）、**Uninstall Service**（アンインストール）、**Open Settings Folder**（設定フォルダを開く）
 
-インストールが完了している場合、実行ファイルの配置先と設定ファイルのパスも追加で表示されます。
+コマンドラインから直接実行することでも、簡易的にステータスを確認できます：
 
 - **ホスト側**:
 
@@ -145,8 +152,8 @@ Open Remote URL - Host Status
 - Installed:  Yes
 - Running:    Yes
 - HOST:       http://0.0.0.0:8080
-- Executable: /Users/qwo/Applications/OpenRemoteURLHost.app/Contents/MacOS/open-remote-url-host
-- Config:     /Users/qwo/Applications/OpenRemoteURLHost.app/.env
+- Executable: /Users/<ユーザー名>/Applications/OpenRemoteURLHost.app/Contents/MacOS/open-remote-url-host
+- Config:     /Users/<ユーザー名>/Applications/OpenRemoteURLHost.app/.env
 
 [Usage]
 - To install / start host:
@@ -167,8 +174,8 @@ Open Remote URL - Client Status
 - Running:    Yes
 - HOST:       http://localhost:8080/
 - CLIENT:     http://0.0.0.0:3000
-- Executable: /Users/qwo/Applications/OpenRemoteURLClient.app/Contents/MacOS/open-remote-url-client
-- Config:     /Users/qwo/Applications/OpenRemoteURLClient.app/.env
+- Executable: /Users/<ユーザー名>/Applications/OpenRemoteURLClient.app/Contents/MacOS/open-remote-url-client
+- Config:     /Users/<ユーザー名>/Applications/OpenRemoteURLClient.app/.env
 
 [Usage]
 - To install / start client:
@@ -199,9 +206,9 @@ Open Remote URL - Client Status
 また、システム構成図（フローチャート）の画像は、iPadのフリーボードで描画した手書きのスケッチをベースに、**Gemini 3.1 Flash（マルチモーダル機能）** に読み込ませて文字を綺麗に清書し、枠の配置や全体のレイアウトを調整しながら作成されました（プロンプトの調整には試行錯誤が重ねられています）。
 
 これらのAIモデルは、Googleが提供するAntigravityおよびAntigravity IDE上で無料で使用できます。
-また、本プロジェクトはGoogle One AI Proプラン（月額約3,000円）を利用し、約8時間で完成しました。
+また、本プロジェクトはGoogle One AI Proプラン（月額約3,000円）を利用して完成しました。
 
 - **開発開始（最初のプロンプト送信）**: 2026/05/26 15:35 JST
-- **開発完了（最後のプロンプト送信）**: 2026/05/26 23:40 JST
+- **最終更新**: 2026/05/29 JST
 
 なお、アニメの鑑賞と並行しながらのプロンプト入力・コード検証であったこと、そしてGeminiの応答が極めて高速であったことから、開発に専念していれば、本来はさらに短い時間で完成させることも可能でした。

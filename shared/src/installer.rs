@@ -428,10 +428,66 @@ fn setup_macos_app_bundle(
             fs::copy(current_exe, &target_exe)?;
         }
 
+        // Write a minimal Info.plist; URL scheme registration is handled below.
         let info_plist = app_dir.join("Contents").join("Info.plist");
+        let plist_content = format!(
+            r#"<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>CFBundleIdentifier</key>
+    <string>quest.nae.open-remote-url.{}</string>
+    <key>CFBundleName</key>
+    <string>{}</string>
+    <key>CFBundlePackageType</key>
+    <string>APPL</string>
+    <key>CFBundleSignature</key>
+    <string>????</string>
+    <key>CFBundleExecutable</key>
+    <string>{}</string>
+    <key>LSUIElement</key>
+    <true/>
+</dict>
+</plist>
+"#,
+            app_type, app_name, bin_name
+        );
+        fs::write(info_plist, plist_content)?;
+    }
 
-        let url_types_str = if app_type == "client" {
-            r#"    <key>CFBundleURLTypes</key>
+    // Ensure target executable has executable permissions
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        if target_exe.exists() {
+            let mut perms = fs::metadata(&target_exe)?.permissions();
+            perms.set_mode(0o755);
+            fs::set_permissions(&target_exe, perms)?;
+        }
+    }
+
+    // Always rewrite Info.plist at install time for clients to register http/https URL schemes.
+    // This handles both the .app-bundle copy path and the raw-binary fallback path.
+    if app_type == "client" {
+        let info_plist = app_dir.join("Contents").join("Info.plist");
+        let plist_content = format!(
+            r#"<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>CFBundleIdentifier</key>
+    <string>quest.nae.open-remote-url.{}</string>
+    <key>CFBundleName</key>
+    <string>{}</string>
+    <key>CFBundlePackageType</key>
+    <string>APPL</string>
+    <key>CFBundleSignature</key>
+    <string>????</string>
+    <key>CFBundleExecutable</key>
+    <string>{}</string>
+    <key>LSUIElement</key>
+    <true/>
+    <key>CFBundleURLTypes</key>
     <array>
         <dict>
             <key>CFBundleURLName</key>
@@ -456,46 +512,16 @@ fn setup_macos_app_bundle(
                 <string>public.xhtml</string>
             </array>
         </dict>
-    </array>"#
-        } else {
-            ""
-        };
-
-        let plist_content = format!(
-            r#"<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0">
-<dict>
-    <key>CFBundleIdentifier</key>
-    <string>quest.nae.open-remote-url.{}</string>
-    <key>CFBundleName</key>
-    <string>{}</string>
-    <key>CFBundlePackageType</key>
-    <string>APPL</string>
-    <key>CFBundleSignature</key>
-    <string>????</string>
-    <key>CFBundleExecutable</key>
-    <string>{}</string>
-    <key>LSUIElement</key>
-    <true/>
-{}
+    </array>
 </dict>
 </plist>
 "#,
-            app_type, app_name, bin_name, url_types_str
+            app_type,
+            app_name,
+            binary_name(app_type),
         );
-        fs::write(info_plist, plist_content)?;
-    }
-
-    // Ensure target executable has executable permissions
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::PermissionsExt;
-        if target_exe.exists() {
-            let mut perms = fs::metadata(&target_exe)?.permissions();
-            perms.set_mode(0o755);
-            fs::set_permissions(&target_exe, perms)?;
-        }
+        log::info!("Writing Info.plist with URL scheme registration to {:?}", info_plist);
+        fs::write(&info_plist, plist_content)?;
     }
 
     Ok(target_exe)

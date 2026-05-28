@@ -189,6 +189,21 @@ impl eframe::App for StatusApp {
                         Ok(_) => {
                             self.message = Some("Service successfully installed and started!".to_string());
                             self.is_error = false;
+                            // Wait for daemon to start (up to 3 seconds)
+                            let port = if self.app_type == "client" {
+                                crate::config::ClientConfig::load().client_port
+                            } else {
+                                crate::config::HostConfig::load().port
+                            };
+                            for _ in 0..6 {
+                                std::thread::sleep(std::time::Duration::from_millis(500));
+                                if std::net::TcpStream::connect_timeout(
+                                    &std::net::SocketAddr::from(([127, 0, 0, 1], port)),
+                                    std::time::Duration::from_millis(200),
+                                ).is_ok() {
+                                    break;
+                                }
+                            }
                         }
                         Err(e) => {
                             self.message = Some(format!("Installation failed: {}", e));
