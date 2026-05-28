@@ -22,39 +22,32 @@ jobs:
                       runs-on: ubuntu-latest
                       target: x86_64-unknown-linux-musl
                       use-cross: true
-                      script-ext: sh
                     - os-name: Linux-aarch64
                       runs-on: ubuntu-latest
                       target: aarch64-unknown-linux-musl
                       use-cross: true
-                      script-ext: sh
                     - os-name: Linux-riscv64
                       runs-on: ubuntu-24.04-riscv
                       target: riscv64gc-unknown-linux-musl
                       use-cross: false
-                      script-ext: sh
 
                     - os-name: Windows-x86_64
                       runs-on: windows-latest
                       target: x86_64-pc-windows-msvc
                       use-cross: true
-                      script-ext: bat
                     - os-name: Windows-aarch64
                       runs-on: windows-latest
                       target: aarch64-pc-windows-msvc
                       use-cross: true
-                      script-ext: bat
 
                     - os-name: macOS-x86_64
                       runs-on: macos-latest
                       target: x86_64-apple-darwin
                       use-cross: true
-                      script-ext: command
                     - os-name: macOS-aarch64
                       runs-on: macos-latest
                       target: aarch64-apple-darwin
                       use-cross: true
-                      script-ext: command
         runs-on: ${{ matrix.platform.runs-on }}
         steps:
             - uses: actions/checkout@v4
@@ -70,13 +63,24 @@ jobs:
                       client
                       host
 
-            - name: Build Client & Host with Cargo or Cross
-              if: matrix.platform.target != 'riscv64gc-unknown-linux-musl'
+            - name: Install cargo-post (macOS only)
+              if: contains(matrix.platform.target, 'apple-darwin')
+              run: cargo install cargo-post
+
+            - name: Build Client & Host with Cargo post-build (macOS only)
+              if: contains(matrix.platform.target, 'apple-darwin')
+              run: |
+                cargo post build --package open_remote_url --locked --release --target ${{ matrix.platform.target }}
+                cargo post build --package open_remote_url_host --locked --release --target ${{ matrix.platform.target }}
+
+            - name: Build Client & Host with Cargo or Cross (non-macOS)
+              if: "!contains(matrix.platform.target, 'apple-darwin') && matrix.platform.target != 'riscv64gc-unknown-linux-musl'"
               uses: actions-rs/cargo@v1
               with:
                   use-cross: ${{ matrix.platform.use-cross }}
                   command: build
                   args: --manifest-path Cargo.toml --locked --release --target ${{ matrix.platform.target }}
+
             - name: Build Client & Host RISCV with Cargo or Cross
               if: matrix.platform.target == 'riscv64gc-unknown-linux-musl'
               uses: actions-rs/cargo@v1
@@ -86,6 +90,73 @@ jobs:
                   use-cross: ${{ matrix.platform.use-cross }}
                   command: build
                   args: --manifest-path Cargo.toml --locked --release --target ${{ matrix.platform.target }}
+
+            - name: Determine Extra Files
+              shell: bash
+              run: |
+                if [[ "${{ matrix.platform.target }}" == *"-apple-darwin" ]]; then
+                  echo "EXTRA_FILES<<EOF" >> $GITHUB_ENV
+                  echo "OpenRemoteURLClient.app" >> $GITHUB_ENV
+                  echo "inactive.env" >> $GITHUB_ENV
+                  echo "README.md" >> $GITHUB_ENV
+                  echo "README.ja_JP.md" >> $GITHUB_ENV
+                  echo "README.ja_EZ.md" >> $GITHUB_ENV
+                  echo "README.zh_CN.md" >> $GITHUB_ENV
+                  echo "EOF" >> $GITHUB_ENV
+                  
+                  echo "HOST_EXTRA_FILES<<EOF" >> $GITHUB_ENV
+                  echo "OpenRemoteURLHost.app" >> $GITHUB_ENV
+                  echo "inactive.env" >> $GITHUB_ENV
+                  echo "README.md" >> $GITHUB_ENV
+                  echo "README.ja_JP.md" >> $GITHUB_ENV
+                  echo "README.ja_EZ.md" >> $GITHUB_ENV
+                  echo "README.zh_CN.md" >> $GITHUB_ENV
+                  echo "EOF" >> $GITHUB_ENV
+                elif [[ "${{ matrix.platform.target }}" == *"-pc-windows-"* ]]; then
+                  echo "EXTRA_FILES<<EOF" >> $GITHUB_ENV
+                  echo "client/inactive.env" >> $GITHUB_ENV
+                  echo "README.md" >> $GITHUB_ENV
+                  echo "README.ja_JP.md" >> $GITHUB_ENV
+                  echo "README.ja_EZ.md" >> $GITHUB_ENV
+                  echo "README.zh_CN.md" >> $GITHUB_ENV
+                  echo "EOF" >> $GITHUB_ENV
+                  
+                  echo "HOST_EXTRA_FILES<<EOF" >> $GITHUB_ENV
+                  echo "host/inactive.env" >> $GITHUB_ENV
+                  echo "README.md" >> $GITHUB_ENV
+                  echo "README.ja_JP.md" >> $GITHUB_ENV
+                  echo "README.ja_EZ.md" >> $GITHUB_ENV
+                  echo "README.zh_CN.md" >> $GITHUB_ENV
+                  echo "EOF" >> $GITHUB_ENV
+                else
+                  echo "EXTRA_FILES<<EOF" >> $GITHUB_ENV
+                  echo "scripts/install/install.sh" >> $GITHUB_ENV
+                  echo "scripts/uninstall/uninstall.sh" >> $GITHUB_ENV
+                  echo "scripts/config/config.sh" >> $GITHUB_ENV
+                  echo "client/inactive.env" >> $GITHUB_ENV
+                  echo "README.md" >> $GITHUB_ENV
+                  echo "README.ja_JP.md" >> $GITHUB_ENV
+                  echo "README.ja_EZ.md" >> $GITHUB_ENV
+                  echo "README.zh_CN.md" >> $GITHUB_ENV
+                  echo "EOF" >> $GITHUB_ENV
+                  
+                  echo "HOST_EXTRA_FILES<<EOF" >> $GITHUB_ENV
+                  echo "scripts/install/install.sh" >> $GITHUB_ENV
+                  echo "scripts/uninstall/uninstall.sh" >> $GITHUB_ENV
+                  echo "scripts/config/config.sh" >> $GITHUB_ENV
+                  echo "host/inactive.env" >> $GITHUB_ENV
+                  echo "README.md" >> $GITHUB_ENV
+                  echo "README.ja_JP.md" >> $GITHUB_ENV
+                  echo "README.ja_EZ.md" >> $GITHUB_ENV
+                  echo "README.zh_CN.md" >> $GITHUB_ENV
+                  echo "EOF" >> $GITHUB_ENV
+                fi
+
+            - name: Stage Client Release Files (macOS only)
+              if: contains(matrix.platform.target, 'apple-darwin')
+              run: |
+                cp -R target/${{ matrix.platform.target }}/release/OpenRemoteURLClient.app ./
+                cp client/inactive.env ./inactive.env
 
             - name: Wait
               shell: bash
@@ -99,15 +170,7 @@ jobs:
                   working-directory: .
                   executable-name: open-remote-url-client
                   target: ${{ matrix.platform.target }}
-                  extra-files: |-
-                      scripts/install/install.${{ matrix.platform.script-ext }}
-                      scripts/uninstall/uninstall.${{ matrix.platform.script-ext }}
-                      scripts/config/config.${{ matrix.platform.script-ext }}
-                      client/inactive.env
-                      README.md
-                      README.ja_JP.md
-                      README.ja_EZ.md
-                      README.zh_CN.md
+                  extra-files: ${{ env.EXTRA_FILES }}
                   _force-release-for-testing: true
                   action-gh-release-parameters: |
                       {
@@ -128,21 +191,21 @@ jobs:
                   working-directory: .
                   executable-name: open-remote-url-client
                   target: ${{ matrix.platform.target }}
-                  extra-files: |-
-                      scripts/install/install.${{ matrix.platform.script-ext }}
-                      scripts/uninstall/uninstall.${{ matrix.platform.script-ext }}
-                      scripts/config/config.${{ matrix.platform.script-ext }}
-                      client/inactive.env
-                      README.md
-                      README.ja_JP.md
-                      README.ja_EZ.md
-                      README.zh_CN.md
+                  extra-files: ${{ env.EXTRA_FILES }}
                   _force-release-for-testing: true
                   action-gh-release-parameters: |
                       {
                           "repository": "NaeCqde/open_remote_url",
                           "token": "${{ secrets.GITHUB_TOKEN }}"
                       }
+
+            - name: Stage Host Release Files (macOS only)
+              if: !cancelled() && contains(matrix.platform.target, 'apple-darwin')
+              run: |
+                rm -rf OpenRemoteURLClient.app
+                rm -f inactive.env
+                cp -R target/${{ matrix.platform.target }}/release/OpenRemoteURLHost.app ./
+                cp host/inactive.env ./inactive.env
 
             - name: Wait
               shell: bash
@@ -156,15 +219,7 @@ jobs:
                   working-directory: .
                   executable-name: open-remote-url-host
                   target: ${{ matrix.platform.target }}
-                  extra-files: |-
-                      scripts/install/install.${{ matrix.platform.script-ext }}
-                      scripts/uninstall/uninstall.${{ matrix.platform.script-ext }}
-                      scripts/config/config.${{ matrix.platform.script-ext }}
-                      host/inactive.env
-                      README.md
-                      README.ja_JP.md
-                      README.ja_EZ.md
-                      README.zh_CN.md
+                  extra-files: ${{ env.HOST_EXTRA_FILES }}
                   _force-release-for-testing: true
                   action-gh-release-parameters: |
                       {
@@ -185,15 +240,7 @@ jobs:
                   working-directory: .
                   executable-name: open-remote-url-host
                   target: ${{ matrix.platform.target }}
-                  extra-files: |-
-                      scripts/install/install.${{ matrix.platform.script-ext }}
-                      scripts/uninstall/uninstall.${{ matrix.platform.script-ext }}
-                      scripts/config/config.${{ matrix.platform.script-ext }}
-                      host/inactive.env
-                      README.md
-                      README.ja_JP.md
-                      README.ja_EZ.md
-                      README.zh_CN.md
+                  extra-files: ${{ env.HOST_EXTRA_FILES }}
                   _force-release-for-testing: true
                   action-gh-release-parameters: |
                       {

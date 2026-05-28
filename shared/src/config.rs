@@ -19,19 +19,6 @@ pub fn get_config_dir(app_type: &str) -> PathBuf {
     }
     #[cfg(target_os = "macos")]
     {
-        if let Ok(current_exe) = env::current_exe() {
-            if let Some(exe_dir) = current_exe.parent() {
-                let exe_dir_str = exe_dir.to_string_lossy();
-                if exe_dir_str.contains(".app/Contents/MacOS") {
-                    if let Some(contents_dir) = exe_dir.parent() {
-                        if let Some(app_root) = contents_dir.parent() {
-                            return app_root.to_path_buf();
-                        }
-                    }
-                }
-            }
-        }
-
         let home = env::var("HOME").unwrap_or_default();
         let app_name = if app_type == "client" {
             "OpenRemoteURLClient"

@@ -7,14 +7,6 @@ fn print_status() {
     let (is_installed, is_running, exe_path, config_path) = shared::installer::check_status("host");
     let config = shared::config::HostConfig::load();
 
-    let ext = if cfg!(target_os = "windows") {
-        "bat"
-    } else if cfg!(target_os = "macos") {
-        "command"
-    } else {
-        "sh"
-    };
-
     let mut status_msg = format!(
         "Open Remote URL - Host Status\n\n\
         [Status]\n\
@@ -37,25 +29,26 @@ fn print_status() {
         ));
     }
 
-    status_msg.push_str(&format!(
+    let usage_msg = if cfg!(target_os = "windows") {
         "\n\n\
         [Usage]\n\
-        - To install / start host:\n  Run install.{} in the release folder\n\n\
-        - To uninstall / clean registrations:\n  Run uninstall.{} in the release folder",
-        ext, ext
-    ));
+        - To install / start host:\n  Double-click the executable to open GUI Control Panel\n\n\
+        - To uninstall / clean registrations:\n  Open GUI Control Panel and click Uninstall"
+    } else if cfg!(target_os = "macos") {
+        "\n\n\
+        [Usage]\n\
+        - To install / start host:\n  Double-click the OpenRemoteURLHost.app bundle to open GUI Control Panel\n\n\
+        - To uninstall / clean registrations:\n  Open GUI Control Panel and click Uninstall"
+    } else {
+        "\n\n\
+        [Usage]\n\
+        - To install / start host:\n  Double-click the executable to open GUI Control Panel (GUI Desktop)\n  Or run ./install.sh in the release folder (CLI/Headless)\n\n\
+        - To uninstall / clean registrations:\n  Open GUI Control Panel and click Uninstall (GUI)\n  Or run ./uninstall.sh in the release folder (CLI/Headless)"
+    };
+
+    status_msg.push_str(usage_msg);
 
     println!("{}", status_msg);
-}
-
-#[cfg(target_os = "windows")]
-fn detach_console() {
-    extern "system" {
-        fn FreeConsole() -> i32;
-    }
-    unsafe {
-        FreeConsole();
-    }
 }
 
 #[tokio::main]
@@ -70,6 +63,16 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     if args.len() < 2 {
+        #[cfg(any(target_os = "windows", target_os = "macos", target_os = "linux"))]
+        {
+            if shared::utils::is_double_clicked() {
+                #[cfg(target_os = "windows")]
+                shared::utils::detach_console();
+
+                shared::gui::run_gui("host");
+                exit(0);
+            }
+        }
         print_status();
         exit(0);
     }
@@ -104,7 +107,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     } else if arg == "--daemon" {
         // Hide/detach console on Windows if running in background daemon mode
         #[cfg(target_os = "windows")]
-        detach_console();
+        shared::utils::detach_console();
 
         log::info!("Starting Host Daemon in background...");
         daemon::run().await?;

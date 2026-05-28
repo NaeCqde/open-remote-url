@@ -17,14 +17,6 @@ fn print_status() {
         format!("{}/", host_url)
     };
 
-    let ext = if cfg!(target_os = "windows") {
-        "bat"
-    } else if cfg!(target_os = "macos") {
-        "command"
-    } else {
-        "sh"
-    };
-
     let mut status_msg = format!(
         "Open Remote URL - Client Status\n\n\
         [Status]\n\
@@ -49,13 +41,24 @@ fn print_status() {
         ));
     }
 
-    status_msg.push_str(&format!(
+    let usage_msg = if cfg!(target_os = "windows") {
         "\n\n\
         [Usage]\n\
-        - To install / start client:\n  Run install.{} in the release folder\n\n\
-        - To uninstall / clean registrations:\n  Run uninstall.{} in the release folder",
-        ext, ext
-    ));
+        - To install / start client:\n  Double-click the executable to open GUI Control Panel\n\n\
+        - To uninstall / clean registrations:\n  Open GUI Control Panel and click Uninstall"
+    } else if cfg!(target_os = "macos") {
+        "\n\n\
+        [Usage]\n\
+        - To install / start client:\n  Double-click the OpenRemoteURLClient.app bundle to open GUI Control Panel\n\n\
+        - To uninstall / clean registrations:\n  Open GUI Control Panel and click Uninstall"
+    } else {
+        "\n\n\
+        [Usage]\n\
+        - To install / start client:\n  Double-click the executable to open GUI Control Panel (GUI Desktop)\n  Or run ./install.sh in the release folder (CLI/Headless)\n\n\
+        - To uninstall / clean registrations:\n  Open GUI Control Panel and click Uninstall (GUI)\n  Or run ./uninstall.sh in the release folder (CLI/Headless)"
+    };
+
+    status_msg.push_str(usage_msg);
 
     println!("{}", status_msg);
 }
@@ -76,6 +79,19 @@ async fn main() -> Result<(), Box<dyn Error>> {
     }
 
     if args.len() < 2 {
+        #[cfg(any(target_os = "windows", target_os = "macos", target_os = "linux"))]
+        {
+            let should_show_gui = if cfg!(target_os = "windows") {
+                true // GUI subsystem app on Windows always shows GUI on zero arguments
+            } else {
+                shared::utils::is_double_clicked()
+            };
+
+            if should_show_gui {
+                shared::gui::run_gui("client");
+                exit(0);
+            }
+        }
         print_status();
         exit(0);
     }

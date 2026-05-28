@@ -2,60 +2,19 @@ use std::env;
 use std::fs;
 use std::path::{Path, PathBuf};
 
+pub use crate::uninstaller::uninstall;
+use crate::installer_utils::{binary_name, stop_and_unregister};
+
+#[cfg(target_os = "macos")]
+use crate::installer_utils::plist_label;
+#[cfg(target_os = "linux")]
+use crate::installer_utils::service_name;
+#[cfg(target_os = "windows")]
+use crate::installer_utils::registry_run_key;
+
 fn copy_script_files(target_dir: &Path) -> Result<(), Box<dyn std::error::Error>> {
-    #[cfg(target_os = "macos")]
+    #[cfg(target_os = "linux")]
     {
-        log::info!("Generating macOS scripts in {:?}", target_dir);
-        let uninstall_content = r#"#!/bin/bash
-cd "$(dirname "$0")"
-echo "Uninstalling Open Remote URL..."
-exe="./Contents/MacOS/open-remote-url-client"
-if [ -f "$exe" ]; then
-    chmod +x "$exe"
-    "$exe" --uninstall
-fi
-exe="./Contents/MacOS/open-remote-url-host"
-if [ -f "$exe" ]; then
-    chmod +x "$exe"
-    "$exe" --uninstall
-fi
-"#;
-
-        let config_content = r#"#!/bin/bash
-cd "$(dirname "$0")"
-echo "Opening Open Remote URL config..."
-exe="./Contents/MacOS/open-remote-url-client"
-if [ -f "$exe" ]; then
-    chmod +x "$exe"
-    "$exe" --config
-fi
-exe="./Contents/MacOS/open-remote-url-host"
-if [ -f "$exe" ]; then
-    chmod +x "$exe"
-    "$exe" --config
-fi
-"#;
-
-        let uninstall_path = target_dir.join("uninstall.command");
-        let config_path = target_dir.join("config.command");
-
-        fs::write(&uninstall_path, uninstall_content)?;
-        fs::write(&config_path, config_content)?;
-
-        use std::os::unix::fs::PermissionsExt;
-        for path in &[&uninstall_path, &config_path] {
-            let mut perms = fs::metadata(path)?.permissions();
-            perms.set_mode(0o755);
-            fs::set_permissions(path, perms)?;
-        }
-        return Ok(());
-    }
-
-    #[cfg(not(target_os = "macos"))]
-    {
-        #[cfg(target_os = "windows")]
-        let files = &["uninstall.bat", "config.bat"];
-        #[cfg(target_os = "linux")]
         let files = &["uninstall.sh", "config.sh"];
 
         let current_exe_dir = env::current_exe()?
@@ -66,9 +25,9 @@ fi
         let current_dir = env::current_dir()?;
 
         for file_name in files {
-            let mut src = current_exe_dir.join(file_name);
+            let mut src = current_exe_dir.join(*file_name);
             if !src.exists() {
-                src = current_dir.join(file_name);
+                src = current_dir.join(*file_name);
             }
             if !src.exists() {
                 if file_name.starts_with("uninstall") {
@@ -85,13 +44,10 @@ fi
                 let dest = target_dir.join(file_name);
                 log::info!("Copying script {:?} to {:?}", src, dest);
                 fs::copy(&src, &dest)?;
-                #[cfg(unix)]
-                {
-                    use std::os::unix::fs::PermissionsExt;
-                    let mut perms = fs::metadata(&dest)?.permissions();
-                    perms.set_mode(0o755);
-                    fs::set_permissions(&dest, perms)?;
-                }
+                use std::os::unix::fs::PermissionsExt;
+                let mut perms = fs::metadata(&dest)?.permissions();
+                perms.set_mode(0o755);
+                fs::set_permissions(&dest, perms)?;
             } else {
                 log::warn!(
                     "Source script file {:?} not found, skipping copy",
@@ -99,54 +55,15 @@ fi
                 );
             }
         }
-        Ok(())
     }
+
+    let _ = target_dir;
+    Ok(())
 }
 
-fn remove_script_files(target_dir: &Path) {
-    #[cfg(target_os = "windows")]
-    let files = &["uninstall.bat", "config.bat"];
-    #[cfg(target_os = "macos")]
-    let files = &["uninstall.command", "config.command"];
-    #[cfg(target_os = "linux")]
-    let files = &["uninstall.sh", "config.sh"];
 
-    for file_name in files {
-        let path = target_dir.join(file_name);
-        if path.exists() {
-            let _ = fs::remove_file(path);
-        }
-    }
-}
 
-#[cfg(any(target_os = "linux", target_os = "macos"))]
-fn binary_name(app_type: &str) -> &'static str {
-    if app_type == "client" {
-        "open-remote-url-client"
-    } else {
-        "open-remote-url-host"
-    }
-}
-#[cfg(target_os = "macos")]
-fn plist_label(app_type: &str) -> String {
-    format!("quest.nae.open-remote-url.{}", app_type)
-}
-
-#[cfg(target_os = "linux")]
-fn service_name(app_type: &str) -> String {
-    format!("open-remote-url-{}.service", app_type)
-}
-
-#[cfg(target_os = "windows")]
-fn registry_run_key(app_type: &str) -> &'static str {
-    if app_type == "client" {
-        "OpenRemoteURLClientDaemon"
-    } else {
-        "OpenRemoteURLHostDaemon"
-    }
-}
-
-fn move_env_file(app_type: &str) -> Result<(), Box<dyn std::error::Error>> {
+fn copy_env_file(app_type: &str) -> Result<(), Box<dyn std::error::Error>> {
     let target_env = crate::config::get_config_path(app_type);
     let config_dir = target_env.parent().ok_or("Invalid config dir")?;
     fs::create_dir_all(config_dir)?;
@@ -162,11 +79,10 @@ fn move_env_file(app_type: &str) -> Result<(), Box<dyn std::error::Error>> {
 
     if source_env.exists() {
         log::info!(
-            "Moving inactive.env configuration to {:?}",
+            "Copying inactive.env configuration to {:?}",
             target_env
         );
         fs::copy(&source_env, &target_env)?;
-        let _ = fs::remove_file(&source_env);
     } else if !target_env.exists() {
         log::info!("Writing a default .env file");
         if app_type == "client" {
@@ -195,7 +111,7 @@ pub fn install(app_type: &str) -> Result<(), Box<dyn std::error::Error>> {
         fs::create_dir_all(&install_dir)?;
         let target_exe = install_dir.join(format!("{}.exe", binary_name(app_type)));
 
-        move_env_file(app_type)?;
+        copy_env_file(app_type)?;
 
         if current_exe != target_exe {
             fs::copy(&current_exe, &target_exe)?;
@@ -217,7 +133,7 @@ pub fn install(app_type: &str) -> Result<(), Box<dyn std::error::Error>> {
     {
         let home = env::var("HOME")?;
 
-        move_env_file(app_type)?;
+        copy_env_file(app_type)?;
 
         let apps_dir = PathBuf::from(home).join("Applications");
         fs::create_dir_all(&apps_dir)?;
@@ -245,7 +161,7 @@ pub fn install(app_type: &str) -> Result<(), Box<dyn std::error::Error>> {
             .join(app_type);
         fs::create_dir_all(&bin_dir)?;
 
-        move_env_file(app_type)?;
+        copy_env_file(app_type)?;
 
         let target_exe = bin_dir.join(binary_name(app_type));
         if current_exe != target_exe {
@@ -262,108 +178,41 @@ pub fn install(app_type: &str) -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
-fn remove_dir_if_empty_or_ds_store(dir: &Path) {
-    if !dir.exists() {
-        return;
-    }
-    if let Ok(entries) = fs::read_dir(dir) {
-        let mut is_empty_or_ds = true;
-        let mut ds_store_path = None;
-        for entry in entries {
-            if let Ok(entry) = entry {
-                let file_name = entry.file_name();
-                if file_name == ".DS_Store" {
-                    ds_store_path = Some(entry.path());
-                } else {
-                    is_empty_or_ds = false;
-                    break;
+fn find_inactive_env_path(app_type: &str) -> PathBuf {
+    if let Ok(current_exe) = env::current_exe() {
+        if let Some(parent) = current_exe.parent() {
+            let p = parent.join("inactive.env");
+            if p.exists() {
+                return p;
+            }
+            let exe_dir_str = parent.to_string_lossy();
+            if exe_dir_str.contains(".app/Contents/MacOS") {
+                if let Some(contents) = parent.parent() {
+                    if let Some(app_root) = contents.parent() {
+                        if let Some(app_parent) = app_root.parent() {
+                            let p = app_parent.join("inactive.env");
+                            if p.exists() {
+                                return p;
+                            }
+                            let p_app_type = app_parent.join(app_type).join("inactive.env");
+                            if p_app_type.exists() {
+                                return p_app_type;
+                            }
+                        }
+                    }
                 }
             }
         }
-        if is_empty_or_ds {
-            if let Some(ds_path) = ds_store_path {
-                let _ = fs::remove_file(ds_path);
-            }
-            let _ = fs::remove_dir(dir);
-        }
     }
-}
-
-pub fn uninstall(app_type: &str) -> Result<(), Box<dyn std::error::Error>> {
-    let _ = stop_and_unregister(app_type);
-
-    #[cfg(target_os = "windows")]
-    {
-        let local_app_data = env::var("LOCALAPPDATA")?;
-        let install_dir = PathBuf::from(local_app_data)
-            .join("Programs")
-            .join("open-remote-url")
-            .join(app_type);
-        let target_exe = install_dir.join(format!("{}.exe", binary_name(app_type)));
-
-        remove_script_files(&install_dir);
-
-        if target_exe.exists() {
-            let _ = fs::remove_file(&target_exe);
-        }
-        remove_dir_if_empty_or_ds_store(&install_dir);
-        if let Some(parent_dir) = install_dir.parent() {
-            remove_dir_if_empty_or_ds_store(parent_dir);
-        }
+    let p = env::current_dir().unwrap_or_default().join("inactive.env");
+    if p.exists() {
+        return p;
     }
-
-    #[cfg(target_os = "macos")]
-    {
-        let home = env::var("HOME")?;
-        let apps_dir = PathBuf::from(home).join("Applications");
-        let app_name = if app_type == "client" {
-            "OpenRemoteURLClient"
-        } else {
-            "OpenRemoteURLHost"
-        };
-        let app_path = apps_dir.join(format!("{}.app", app_name));
-
-        remove_script_files(&app_path);
-
-        if app_path.exists() {
-            let _ = fs::remove_dir_all(&app_path);
-        }
+    let p_app_type = env::current_dir().unwrap_or_default().join(app_type).join("inactive.env");
+    if p_app_type.exists() {
+        return p_app_type;
     }
-
-    #[cfg(target_os = "linux")]
-    {
-        let home = env::var("HOME")?;
-        let bin_dir = PathBuf::from(home)
-            .join(".local")
-            .join("bin")
-            .join("open-remote-url")
-            .join(app_type);
-        let target_exe = bin_dir.join(binary_name(app_type));
-
-        remove_script_files(&bin_dir);
-
-        if target_exe.exists() {
-            let _ = fs::remove_file(&target_exe);
-        }
-        remove_dir_if_empty_or_ds_store(&bin_dir);
-        if let Some(parent_dir) = bin_dir.parent() {
-            remove_dir_if_empty_or_ds_store(parent_dir);
-        }
-    }
-
-    // Delete config file and config directory if empty
-    let target_env = crate::config::get_config_path(app_type);
-    if target_env.exists() {
-        let _ = fs::remove_file(&target_env);
-    }
-    if let Some(config_dir) = target_env.parent() {
-        remove_dir_if_empty_or_ds_store(config_dir);
-        if let Some(parent_config_dir) = config_dir.parent() {
-            remove_dir_if_empty_or_ds_store(parent_config_dir);
-        }
-    }
-
-    Ok(())
+    p
 }
 
 pub fn check_status(app_type: &str) -> (bool, bool, PathBuf, PathBuf) {
@@ -452,134 +301,16 @@ pub fn check_status(app_type: &str) -> (bool, bool, PathBuf, PathBuf) {
     )
     .is_ok();
 
-    let config_path = crate::config::get_config_path(app_type);
+    let config_path = if is_installed {
+        crate::config::get_config_path(app_type)
+    } else {
+        find_inactive_env_path(app_type)
+    };
 
     (is_installed, is_running, exe_path, config_path)
 }
 
-fn stop_and_unregister(app_type: &str) -> Result<(), Box<dyn std::error::Error>> {
-    #[cfg(target_os = "windows")]
-    {
-        let current_pid = std::process::id();
-        let _ = std::process::Command::new("taskkill")
-            .args(&[
-                "/F",
-                "/FI",
-                &format!("PID ne {}", current_pid),
-                "/IM",
-                &format!("{}.exe", binary_name(app_type)),
-            ])
-            .status();
 
-        let _ = std::process::Command::new("reg")
-            .args(&[
-                "delete",
-                "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run",
-                "/v",
-                registry_run_key(app_type),
-                "/f",
-            ])
-            .status();
-
-        if app_type == "client" {
-            let keys = vec![
-                "HKCU\\Software\\Clients\\StartMenuInternet\\OpenRemoteURLClient",
-                "HKCU\\Software\\Classes\\OpenRemoteURLClient",
-            ];
-            for key in keys {
-                let _ = std::process::Command::new("reg")
-                    .args(&["delete", key, "/f"])
-                    .status();
-            }
-
-            let _ = std::process::Command::new("reg")
-                .args(&[
-                    "delete",
-                    "HKCU\\Software\\RegisteredApplications",
-                    "/v",
-                    "OpenRemoteURLClient",
-                    "/f",
-                ])
-                .status();
-        }
-    }
-
-    #[cfg(target_os = "macos")]
-    {
-        let home = env::var("HOME")?;
-        let plist_path = PathBuf::from(home.clone())
-            .join("Library")
-            .join("LaunchAgents")
-            .join(format!("{}.plist", plist_label(app_type)));
-
-        let _ = std::process::Command::new("launchctl")
-            .args(&["unload", &plist_path.to_string_lossy()])
-            .status();
-
-        if plist_path.exists() {
-            let _ = fs::remove_file(&plist_path);
-        }
-
-        let app_name = if app_type == "client" {
-            "OpenRemoteURLClient"
-        } else {
-            "OpenRemoteURLHost"
-        };
-        let app_path = PathBuf::from(home)
-            .join("Applications")
-            .join(format!("{}.app", app_name));
-        if app_path.exists() {
-            let lsregister_path = "/System/Library/Frameworks/CoreServices.framework/Versions/A/Frameworks/LaunchServices.framework/Versions/A/Support/lsregister";
-            let _ = std::process::Command::new(lsregister_path)
-                .args(&["-u", &app_path.to_string_lossy()])
-                .status();
-        }
-    }
-
-    #[cfg(target_os = "linux")]
-    {
-        let service = service_name(app_type);
-        let _ = std::process::Command::new("systemctl")
-            .args(&["--user", "stop", &service])
-            .status();
-        let _ = std::process::Command::new("systemctl")
-            .args(&["--user", "disable", &service])
-            .status();
-
-        let home = env::var("HOME")?;
-        let service_path = PathBuf::from(home.clone())
-            .join(".config")
-            .join("systemd")
-            .join("user")
-            .join(&service);
-        if service_path.exists() {
-            let _ = fs::remove_file(&service_path);
-        }
-
-        let _ = std::process::Command::new("systemctl")
-            .args(&["--user", "daemon-reload"])
-            .status();
-
-        let desktop_name = format!("open-remote-url-{}.desktop", app_type);
-        let desktop_path = PathBuf::from(&home)
-            .join(".local")
-            .join("share")
-            .join("applications")
-            .join(&desktop_name);
-        if desktop_path.exists() {
-            let _ = fs::remove_file(&desktop_path);
-        }
-        let app_dir = PathBuf::from(&home)
-            .join(".local")
-            .join("share")
-            .join("applications");
-        let _ = std::process::Command::new("update-desktop-database")
-            .arg(&app_dir)
-            .status();
-    }
-
-    Ok(())
-}
 
 #[cfg(target_os = "windows")]
 fn setup_windows_startup(
@@ -635,6 +366,36 @@ fn setup_windows_browser(binary_path: &Path) -> Result<(), Box<dyn std::error::E
 }
 
 #[cfg(target_os = "macos")]
+fn get_parent_app_dir(exe_path: &Path) -> Option<PathBuf> {
+    let parent = exe_path.parent()?; // MacOS
+    if parent.file_name()?.to_str()? == "MacOS" {
+        let contents = parent.parent()?; // Contents
+        if contents.file_name()?.to_str()? == "Contents" {
+            let app = contents.parent()?; // OpenRemoteURLClient.app
+            if app.extension()?.to_str()? == "app" {
+                return Some(app.to_path_buf());
+            }
+        }
+    }
+    None
+}
+
+#[cfg(target_os = "macos")]
+fn copy_dir_all(src: impl AsRef<Path>, dst: impl AsRef<Path>) -> std::io::Result<()> {
+    fs::create_dir_all(&dst)?;
+    for entry in fs::read_dir(src)? {
+        let entry = entry?;
+        let ty = entry.file_type()?;
+        if ty.is_dir() {
+            copy_dir_all(entry.path(), dst.as_ref().join(entry.file_name()))?;
+        } else {
+            fs::copy(entry.path(), dst.as_ref().join(entry.file_name()))?;
+        }
+    }
+    Ok(())
+}
+
+#[cfg(target_os = "macos")]
 fn setup_macos_app_bundle(
     app_type: &str,
     install_dir: &Path,
@@ -646,19 +407,31 @@ fn setup_macos_app_bundle(
         "OpenRemoteURLHost"
     };
     let app_dir = install_dir.join(format!("{}.app", app_name));
-    let macos_dir = app_dir.join("Contents").join("MacOS");
-    fs::create_dir_all(&macos_dir)?;
-
     let bin_name = binary_name(app_type);
-    let target_exe = macos_dir.join(bin_name);
-    if current_exe != target_exe {
-        fs::copy(current_exe, &target_exe)?;
-    }
+    let target_exe = app_dir.join("Contents").join("MacOS").join(bin_name);
 
-    let info_plist = app_dir.join("Contents").join("Info.plist");
+    if let Some(src_app_dir) = get_parent_app_dir(current_exe) {
+        log::info!("Installing from .app bundle: {:?}", src_app_dir);
+        if app_dir.exists() {
+            log::info!("Removing existing .app bundle at {:?}", app_dir);
+            fs::remove_dir_all(&app_dir)?;
+        }
+        log::info!("Copying .app bundle to {:?}", app_dir);
+        copy_dir_all(&src_app_dir, &app_dir)?;
+    } else {
+        // Fallback: build app bundle dynamically
+        log::info!("Installing raw binary. Rebuilding .app bundle structure...");
+        let macos_dir = app_dir.join("Contents").join("MacOS");
+        fs::create_dir_all(&macos_dir)?;
 
-    let url_types_str = if app_type == "client" {
-        r#"    <key>CFBundleURLTypes</key>
+        if current_exe != target_exe {
+            fs::copy(current_exe, &target_exe)?;
+        }
+
+        let info_plist = app_dir.join("Contents").join("Info.plist");
+
+        let url_types_str = if app_type == "client" {
+            r#"    <key>CFBundleURLTypes</key>
     <array>
         <dict>
             <key>CFBundleURLName</key>
@@ -669,13 +442,27 @@ fn setup_macos_app_bundle(
                 <string>https</string>
             </array>
         </dict>
+    </array>
+    <key>CFBundleDocumentTypes</key>
+    <array>
+        <dict>
+            <key>CFBundleTypeName</key>
+            <string>HTML Document</string>
+            <key>CFBundleTypeRole</key>
+            <string>Viewer</string>
+            <key>LSItemContentTypes</key>
+            <array>
+                <string>public.html</string>
+                <string>public.xhtml</string>
+            </array>
+        </dict>
     </array>"#
-    } else {
-        ""
-    };
+        } else {
+            ""
+        };
 
-    let plist_content = format!(
-        r#"<?xml version="1.0" encoding="UTF-8"?>
+        let plist_content = format!(
+            r#"<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
@@ -695,9 +482,21 @@ fn setup_macos_app_bundle(
 </dict>
 </plist>
 "#,
-        app_type, app_name, bin_name, url_types_str
-    );
-    fs::write(info_plist, plist_content)?;
+            app_type, app_name, bin_name, url_types_str
+        );
+        fs::write(info_plist, plist_content)?;
+    }
+
+    // Ensure target executable has executable permissions
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        if target_exe.exists() {
+            let mut perms = fs::metadata(&target_exe)?.permissions();
+            perms.set_mode(0o755);
+            fs::set_permissions(&target_exe, perms)?;
+        }
+    }
 
     Ok(target_exe)
 }

@@ -66,18 +66,18 @@
 程序运行时，配置文件（`.env`）将按照以下优先级顺序进行查找和加载：
 
 1. **各操作系统对应的配置文件夹**（安装完成后将从此路径加载）
-   - **Windows**: `%APPDATA%\open-remote-url\<client|host>\.env`
-   - **macOS**: `/Users/<user>/Applications/OpenRemoteURLClient.app/.env`（或 `OpenRemoteURLHost.app/.env`）
-   - **Linux**: `~/.config/open-remote-url/<client|host>/.env`
+    - **Windows**: `%APPDATA%\open-remote-url\<client|host>\.env`
+    - **macOS**: `/Users/<user>/Applications/OpenRemoteURLClient.app/.env`（或 `OpenRemoteURLHost.app/.env`）
+    - **Linux**: `~/.config/open-remote-url/<client|host>/.env`
 2. **运行时的当前工作文件夹或其父文件夹**
-   - 若上述配置文件夹中不存在 `.env` 文件，程序将加载运行目录（或其父目录）下的 `.env` 文件（适用于开发调试或手动运行）。
+    - 若上述配置文件夹中不存在 `.env` 文件，程序将加载运行文件夹（或其父文件夹）下的 `.env` 文件（适用于开发调试或手动运行）。
 
-*注意：若系统环境变量与 `.env` 配置文件中定义了相同的配置项，**`.env` 配置文件中的内容将优先（覆盖）**。*
+_注意：若系统环境变量与 `.env` 配置文件中定义了相同的配置项，**`.env` 配置文件中的内容将优先（覆盖）**。_
 
 ### 安装时的行为
 
 发布包中附带了 `inactive.env` 模板文件。
-运行安装脚本时，安装文件夹内的 `inactive.env` 将会自动移动到上述“各操作系统对应的配置文件夹”中，并重命名为 `.env`（复制后原 `inactive.env` 文件将被删除）。
+进行安装时，发布包内的 `inactive.env` 将会自动复制到上述“各操作系统对应的配置文件夹”中，并重命名为 `.env`。
 
 - **运行安装之前**，请先使用文本编辑器打开文件夹内的 `inactive.env`，根据您的环境修改其中的配置值并保存。
 - 如果在不存在 `inactive.env` 的情况下运行安装，配置文件夹中将会自动生成一个包含默认配置值的 `.env` 文件。
@@ -110,22 +110,21 @@ PASSPHRASE=some-shared-secret
 
 ---
 
-## 安装说明
+本工具在各个操作系统中会被安装到以下指定文件夹，并配置为在系统启动时自动运行后台守护进程。
 
-安装程序将当前可执行文件所在的文件夹注册到操作系统的标准服务系统，并配置自动启动。
-**⚠ 安装前，请先将文件夹放置到您希望长期存放的位置。**
-**⚠ 此外，在运行安装程序之前，请使用文本编辑器打开文件夹内的 `inactive.env`，填写好您的配置并保存。**
-**如果忽略了此提示，请重新执行安装步骤。**
+- **Windows**: `%LOCALAPPDATA%\Programs\open-remote-url\<client|host>\`
+- **macOS**: `~/Applications/OpenRemoteURL<Client|Host>.app/`
+- **Linux**: `~/.local/bin/open-remote-url/<client|host>/`
 
-注册并启动守护进程（安装脚本会通过通配符自动检测客户端或主机的可执行文件并进行安装）：
+**⚠ 此外，在进行安装之前，请使用文本编辑器打开文件夹内的 `inactive.env`，填写好您的配置并保存。**
 
-运行与您的操作系统匹配的脚本：
+注册并启动守护进程：
 
-- Windows：运行 `install.bat`
-- macOS：运行 `install.command`
-- Linux：运行 `./install.sh`
-
-此外，发布包中也附带了各系统对应的 `config` 和 `uninstall` 管理脚本。在安装过程中，安装程序会自动将这些脚本（如 macOS 下的 `config.command` 和 `uninstall.command`）复制或生成到目标安装文件夹（如 macOS 下的 `/Users/<user>/Applications/OpenRemoteURLClient.app/` 根目录），以便于后续管理。
+- **Windows**：双击运行文件（`open-remote-url-client.exe` 或 `open-remote-url-host.exe`）打开 GUI 控制面板，然后点击 **[Install Service]** 按钮。
+- **macOS**：双击应用程序包（`OpenRemoteURLClient.app` 或 `OpenRemoteURLHost.app`）打开 GUI 控制面板，然后点击 **[Install Service]** 按钮。
+- **Linux**：
+  - **桌面环境（带 GUI）**：双击运行文件（`open-remote-url-client` 或 `open-remote-url-host`）打开 GUI 控制面板，然后点击 **[Install Service]** 按钮。
+  - **CUI/服务器环境（无 GUI）**：运行发布文件夹中的安装脚本：`./install.sh`
 
 _请在客户端操作系统的设置中，将 **Open Remote URL** 选择为默认 Web 浏览器。_
 
@@ -150,10 +149,10 @@ Open Remote URL - Host Status
 
 [Usage]
 - To install / start host:
-  Run install.command in the release folder
+  Double-click the OpenRemoteURLHost.app bundle (macOS) or the executable (Windows/Linux GUI) to open GUI Control Panel, or run `./install.sh` (Linux CLI)
 
 - To uninstall / clean registrations:
-  Run uninstall.command in the release folder
+  Open GUI Control Panel and click Uninstall, or run `./uninstall.sh` (Linux CLI)
 ```
 
 - **客户端**：
@@ -172,21 +171,23 @@ Open Remote URL - Client Status
 
 [Usage]
 - To install / start client:
-  Run install.command in the release folder
+  Double-click the OpenRemoteURLClient.app bundle (macOS) or the executable (Windows/Linux GUI) to open GUI Control Panel, or run `./install.sh` (Linux CLI)
 
 - To uninstall / clean registrations:
-  Run uninstall.command in the release folder
+  Open GUI Control Panel and click Uninstall, or run `./uninstall.sh` (Linux CLI)
 ```
 
 ---
 
 ## 卸载服务
 
-要完全删除自动启动注册、浏览器关联、plist 文件和 systemd 用户服务等设置并终止后台进程，请在发布文件夹（或安装文件夹内）运行与您的操作系统匹配的脚本：
+要完全删除自动启动注册、浏览器关联、plist 文件和 systemd 用户服务等设置并终止后台进程，请按照以下步骤操作：
 
-- Windows：运行 `uninstall.bat`
-- macOS：运行 `uninstall.command`
-- Linux：运行 `./uninstall.sh`
+- **Windows**：双击运行文件打开 GUI 控制面板，然后点击 **[Uninstall Service]** 按钮。
+- **macOS**：双击应用程序包（`.app`）打开 GUI 控制面板，然后点击 **[Uninstall Service]** 按钮。
+- **Linux**：
+  - **桌面环境（带 GUI）**：双击运行文件打开 GUI 控制面板，然后点击 **[Uninstall Service]** 按钮。
+  - **CUI/服务器环境（无 GUI）**：运行发布文件夹内的 `./uninstall.sh`。
 
 ---
 

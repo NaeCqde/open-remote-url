@@ -66,18 +66,18 @@ Configuration is loaded from system environment variables and the `.env` file.
 At runtime, the configuration file (`.env`) is searched and loaded in the following order of priority:
 
 1. **OS-Specific Configuration Folder** (Loaded from here once installed)
-   - **Windows**: `%APPDATA%\open-remote-url\<client|host>\.env`
-   - **macOS**: `/Users/<user>/Applications/OpenRemoteURLClient.app/.env` (or `OpenRemoteURLHost.app/.env`)
-   - **Linux**: `~/.config/open-remote-url/<client|host>/.env`
+    - **Windows**: `%APPDATA%\open-remote-url\<client|host>\.env`
+    - **macOS**: `/Users/<user>/Applications/OpenRemoteURLClient.app/.env` (or `OpenRemoteURLHost.app/.env`)
+    - **Linux**: `~/.config/open-remote-url/<client|host>/.env`
 2. **Current Working Folder or its Parent Folders**
-   - If the `.env` file does not exist in the OS-specific folder above, the program looks for a `.env` file in the folder where it was executed (or its parent folders). This is useful during development or when running the tool manually.
+    - If the `.env` file does not exist in the OS-specific folder above, the program looks for a `.env` file in the folder where it was executed (or its parent folders). This is useful during development or when running the tool manually.
 
-*Note: If a setting is defined in both system environment variables and the `.env` file, the value in the **`.env` file takes precedence (overrides)**.*
+_Note: If a setting is defined in both system environment variables and the `.env` file, the value in the **`.env` file takes precedence (overrides)**._
 
 ### Installation Behavior
 
 The distribution package includes an `inactive.env` template.
-Running the installer script automatically moves the `inactive.env` from the installation folder to the OS-specific configuration folder and renames it to `.env` (copied, then the original `inactive.env` is deleted).
+Running the installer script automatically copies the `inactive.env` from the installation folder to the OS-specific configuration folder and renames it to `.env`.
 
 - **Before running the installer**, please open the `inactive.env` file in the package folder using a text editor, customize the settings for your environment, and save it.
 - If the installer is run without `inactive.env` present in the folder, a default `.env` file containing default configuration values will be generated automatically in the configuration folder.
@@ -112,19 +112,21 @@ PASSPHRASE=some-shared-secret
 
 ## Installation
 
-The installer registers the current executable's folder with the OS's standard service system and configures autostart.
-**⚠ Place the folder in your desired permanent location before installing.**
-**⚠ Also, before running the installer, open `inactive.env` inside the folder in a text editor, write your settings, and save the file.**
-**If you missed this notice, redo the installation steps.**
+The tool is installed to OS-specific directories as detailed below, and is configured to automatically launch the background daemon on OS boot.
 
-To register and start the daemons (the script automatically detects whether client or host executable is present using wildcards):
+- **Windows**: `%LOCALAPPDATA%\Programs\open-remote-url\<client|host>\`
+- **macOS**: `~/Applications/OpenRemoteURL<Client|Host>.app/`
+- **Linux**: `~/.local/bin/open-remote-url/<client|host>/`
 
-Run the script matching your OS inside the release folder:
-- Windows: Run `install.bat`
-- macOS: Run `install.command`
-- Linux: Run `./install.sh`
+**⚠ Before running the installer, open `inactive.env` inside the folder in a text editor, write your settings, and save the file.**
 
-Additionally, you can find the OS-specific `config.<ext>` and `uninstall.<ext>` scripts in your release folder. During the installation phase, the installer also copies these scripts (e.g. `config.command`, `uninstall.command` on macOS) directly to the target installation directory (e.g. `/Users/<user>/Applications/OpenRemoteURLClient.app/` on macOS) for convenience.
+To register and start the daemons:
+
+- **Windows**: Double-click the executable (`open-remote-url-client.exe` or `open-remote-url-host.exe`) to open the GUI Control Panel, then click the **Install Service** button.
+- **macOS**: Double-click the app bundle (`OpenRemoteURLClient.app` or `OpenRemoteURLHost.app`) to open the GUI Control Panel, then click the **Install Service** button.
+- **Linux**:
+  - **Desktop Environment (with GUI)**: Double-click the executable (`open-remote-url-client` or `open-remote-url-host`) to open the GUI Control Panel, then click the **Install Service** button.
+  - **CLI/Headless Environment (without GUI)**: Run the setup script in the release folder: `./install.sh`
 
 _In your Client OS settings, select **Open Remote URL** as the default web browser._
 
@@ -149,10 +151,10 @@ Open Remote URL - Host Status
 
 [Usage]
 - To install / start host:
-  Run install.command in the release folder
+  Double-click the OpenRemoteURLHost.app bundle (macOS) or the executable (Windows/Linux GUI) to open GUI Control Panel, or run `./install.sh` (Linux CLI)
 
 - To uninstall / clean registrations:
-  Run uninstall.command in the release folder
+  Open GUI Control Panel and click Uninstall, or run `./uninstall.sh` (Linux CLI)
 ```
 
 - **Client**:
@@ -171,10 +173,10 @@ Open Remote URL - Client Status
 
 [Usage]
 - To install / start client:
-  Run install.command in the release folder
+  Double-click the OpenRemoteURLClient.app bundle (macOS) or the executable (Windows/Linux GUI) to open GUI Control Panel, or run `./install.sh` (Linux CLI)
 
 - To uninstall / clean registrations:
-  Run uninstall.command in the release folder
+  Open GUI Control Panel and click Uninstall, or run `./uninstall.sh` (Linux CLI)
 ```
 
 ---
@@ -183,10 +185,11 @@ Open Remote URL - Client Status
 
 To completely remove autostart registrations, browser associations, plist files, and systemd user service settings and terminate the background process:
 
-Run the script matching your OS inside the release folder (or inside your installation path):
-- Windows: Run `uninstall.bat`
-- macOS: Run `uninstall.command`
-- Linux: Run `./uninstall.sh`
+- **Windows**: Open the GUI Control Panel by double-clicking the executable and click the **Uninstall Service** button.
+- **macOS**: Open the GUI Control Panel by double-clicking the `.app` bundle and click the **Uninstall Service** button.
+- **Linux**:
+  - **Desktop Environment (with GUI)**: Open the GUI Control Panel by double-clicking the executable and click the **Uninstall Service** button.
+  - **CLI/Headless Environment (without GUI)**: Run `./uninstall.sh` in the release folder.
 
 ---
 

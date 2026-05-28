@@ -77,10 +77,10 @@
 ### インストールするときの動き
 
 ダウンロードしたフォルダには、あらかじめ `inactive.env` という名前のテンプレートファイルが入っています。
-インストール用のプログラムを実行すると、この `inactive.env` が自動的に上記の「OSごとの決まったフォルダ」へ `.env` という名前に変わって移動（コピーされた後、元のファイルは消去）されます。
+インストール用のプログラムを実行すると、この `inactive.env` が自動的に上記の「OSごとの決まったフォルダ」へ `.env` という名前に変わってコピーされます。
 
 - **インストールする前に**、フォルダの中にある `inactive.env` をメモ帳などで開き、自分の環境に合わせて設定を書き換えて保存しておいてください。
-- もしフォルダの中に `inactive.env` がない状態でインストールを行った場合は、デフォルトの設定が入った `.env` ファイルが自動的に作成されます。
+- もしフォルダの中に `inactive.env` がない状態でインストールを行った場合は、デフォルトの設定が入った `.env` ファイルが自动的に作成されます。
 
 ### ホスト設定（メインPC側: `host/inactive.env`）
 
@@ -117,14 +117,10 @@ PASSPHRASE=二人だけの合言葉
 **※注意※**
 - **インストールを行う前に、フォルダ内にある `inactive.env` をメモ帳などで開き、設定を書き換えて保存してください。**
 
-自動起動の設定をするには、フォルダの中にあるOSに合わせたスクリプト（プログラム）を実行します：
-- Windows: `install.bat` を実行
-- macOS: `install.command` を実行
-- Linux: `./install.sh` を実行
-
-また、インストールを実行すると、設定を確認するための `config` スクリプトや、元に戻すための `uninstall` スクリプトが、自動的にインストール先フォルダ（例: macOSでは `/Users/<ユーザー名>/Applications/OpenRemoteURLClient.app/` の直下）に作成・配置されます。
-
-元のフォルダにあるスクリプトはインストール後も問題なく使えます。
+自動起動の設定をするには、以下の手順を行います：
+- **Windows**: 実行ファイル（`open-remote-url-client.exe` または `open-remote-url-host.exe`）をダブルクリックして、ボタン（Install Service）を押します。
+- **macOS**: アプリケーションファイル（`OpenRemoteURLClient.app` または `OpenRemoteURLHost.app`）をダブルクリックして、ボタン（Install Service）を押します。
+- **Linux**: `./install.sh` を実行します。
 
 _インストールが終わったら、クライアントPCの設定で「デフォルトのブラウザ（一番最初に開くブラウザ）」として **Open Remote URL** を選んでください。_
 
@@ -149,10 +145,10 @@ Open Remote URL - Host Status
 
 [Usage]
 - To install / start host:
-  Run install.command in the release folder
+  Double-click the OpenRemoteURLHost.app bundle to open GUI Control Panel
 
 - To uninstall / clean registrations:
-  Run uninstall.command in the release folder
+  Open GUI Control Panel and click Uninstall
 ```
 
 - **クライアント側**:
@@ -171,10 +167,10 @@ Open Remote URL - Client Status
 
 [Usage]
 - To install / start client:
-  Run install.command in the release folder
+  Double-click the OpenRemoteURLClient.app bundle to open GUI Control Panel
 
 - To uninstall / clean registrations:
-  Run uninstall.command in the release folder
+  Open GUI Control Panel and click Uninstall
 ```
 
 ---
@@ -183,10 +179,10 @@ Open Remote URL - Client Status
 
 使わなくなったら、PCをつけた時の自動起動の設定やデフォルトブラウザの登録をきれいに削除します。
 
-アンインストールを実行するには、フォルダの中（またはインストールした場所）にあるOSに対応したスクリプトを実行します：
-- Windows: `uninstall.bat` を実行
-- macOS: `uninstall.command` を実行
-- Linux: `./uninstall.sh` を実行
+アンインストールを実行するには、以下の手順を行います：
+- **Windows**: 実行ファイルをダブルクリックして、ボタン（Uninstall Service）を押します。
+- **macOS**: アプリケーションファイル（`.app`）をダブルクリックして、ボタン（Uninstall Service）を押します。
+- **Linux**: `./uninstall.sh` を実行します。
 
 ---
 
