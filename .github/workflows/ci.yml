@@ -176,6 +176,7 @@ jobs:
               shell: bash
               run: sleep $((RANDOM % 20 + 5))
             - name: Release Host 2
+              if: failure()
               id: release-host-2
               uses: houseabsolute/actions-rust-release@v0
               env:
