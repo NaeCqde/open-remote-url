@@ -173,7 +173,7 @@ Open Remote URL - Client Status
 - Installed:  Yes
 - Running:    Yes
 - HOST:       http://localhost:8080/
-- CLIENT:     http://0.0.0.0:3000
+- CLIENT:     http://0.0.0.0:3000/
 - Executable: /Users/<ユーザー名>/Applications/OpenRemoteURLClient.app/Contents/MacOS/open-remote-url-client
 - Config:     /Users/<ユーザー名>/Applications/OpenRemoteURLClient.app/.env
 

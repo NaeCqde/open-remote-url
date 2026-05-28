@@ -699,3 +699,166 @@ MimeType=x-scheme-handler/http;x-scheme-handler/https;
 
     Ok(())
 }
+
+pub fn paths_are_equal(p1: &Path, p2: &Path) -> bool {
+    if let (Ok(c1), Ok(c2)) = (p1.canonicalize(), p2.canonicalize()) {
+        c1 == c2
+    } else {
+        let s1 = p1.to_string_lossy().replace('\\', "/");
+        let s2 = p2.to_string_lossy().replace('\\', "/");
+        #[cfg(target_os = "windows")]
+        {
+            s1.eq_ignore_ascii_case(&s2)
+        }
+        #[cfg(not(target_os = "windows"))]
+        {
+            s1 == s2
+        }
+    }
+}
+
+fn find_exe_to_start(app_type: &str) -> Result<PathBuf, Box<dyn std::error::Error>> {
+    #[cfg(target_os = "windows")]
+    let local_path = {
+        let local_app_data = env::var("LOCALAPPDATA")?;
+        PathBuf::from(local_app_data)
+            .join("Programs")
+            .join("open-remote-url")
+            .join(app_type)
+            .join(format!("{}.exe", binary_name(app_type)))
+    };
+    #[cfg(target_os = "macos")]
+    let local_path = {
+        let home = env::var("HOME")?;
+        PathBuf::from(home)
+            .join("Applications")
+            .join(if app_type == "client" { "OpenRemoteURLClient.app" } else { "OpenRemoteURLHost.app" })
+            .join("Contents")
+            .join("MacOS")
+            .join(binary_name(app_type))
+    };
+    #[cfg(target_os = "linux")]
+    let local_path = {
+        let home = env::var("HOME")?;
+        PathBuf::from(home)
+            .join(".local")
+            .join("bin")
+            .join("open-remote-url")
+            .join(app_type)
+            .join(binary_name(app_type))
+    };
+
+    if local_path.exists() {
+        Ok(local_path)
+    } else {
+        let current = env::current_exe()?;
+        Ok(current)
+    }
+}
+
+pub fn start_daemon(app_type: &str) -> Result<(), Box<dyn std::error::Error>> {
+    let (is_installed, _, _, _) = check_status(app_type);
+
+    #[cfg(target_os = "macos")]
+    {
+        if is_installed {
+            let home = env::var("HOME")?;
+            let plist_path = PathBuf::from(home)
+                .join("Library")
+                .join("LaunchAgents")
+                .join(format!("{}.plist", plist_label(app_type)));
+            let _ = std::process::Command::new("launchctl")
+                .args(&["load", &plist_path.to_string_lossy()])
+                .status();
+            let _ = std::process::Command::new("launchctl")
+                .args(&["start", &plist_label(app_type)])
+                .status();
+            return Ok(());
+        }
+    }
+
+    #[cfg(target_os = "linux")]
+    {
+        if is_installed {
+            let service = service_name(app_type);
+            let status = std::process::Command::new("systemctl")
+                .args(&["--user", "start", &service])
+                .status()?;
+            if status.success() {
+                return Ok(());
+            } else {
+                return Err("Failed to start systemd service".into());
+            }
+        }
+    }
+
+    // Default fallback (Windows, or if not installed on mac/linux)
+    let exe = find_exe_to_start(app_type)?;
+    #[cfg(target_os = "windows")]
+    {
+        std::process::Command::new(&exe)
+            .arg("--daemon")
+            .spawn()?;
+    }
+    #[cfg(not(target_os = "windows"))]
+    {
+        std::process::Command::new(&exe)
+            .arg("--daemon")
+            .spawn()?;
+    }
+
+    Ok(())
+}
+
+pub fn stop_daemon(app_type: &str) -> Result<(), Box<dyn std::error::Error>> {
+    let (is_installed, _, _, _) = check_status(app_type);
+
+    #[cfg(target_os = "macos")]
+    {
+        if is_installed {
+            let home = env::var("HOME")?;
+            let plist_path = PathBuf::from(home)
+                .join("Library")
+                .join("LaunchAgents")
+                .join(format!("{}.plist", plist_label(app_type)));
+            let _ = std::process::Command::new("launchctl")
+                .args(&["unload", &plist_path.to_string_lossy()])
+                .status();
+        }
+        let _ = std::process::Command::new("pkill")
+            .arg("-x")
+            .arg(binary_name(app_type))
+            .status();
+    }
+
+    #[cfg(target_os = "linux")]
+    {
+        if is_installed {
+            let service = service_name(app_type);
+            let _ = std::process::Command::new("systemctl")
+                .args(&["--user", "stop", &service])
+                .status();
+        }
+        let _ = std::process::Command::new("pkill")
+            .arg("-x")
+            .arg(binary_name(app_type))
+            .status();
+    }
+
+    #[cfg(target_os = "windows")]
+    {
+        let current_pid = std::process::id();
+        let _ = std::process::Command::new("taskkill")
+            .args(&[
+                "/F",
+                "/FI",
+                &format!("PID ne {}", current_pid),
+                "/IM",
+                &format!("{}.exe", binary_name(app_type)),
+            ])
+            .status();
+    }
+
+    Ok(())
+}
+

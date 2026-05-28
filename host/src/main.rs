@@ -12,7 +12,7 @@ fn print_status() {
         [Status]\n\
         - Installed:  {}\n\
         - Running:    {}\n\
-        - HOST:       http://{}:{}",
+        - HOST:       http://{}:{}/",
         if is_installed { "Yes" } else { "No" },
         if is_running { "Yes" } else { "No" },
         config.host,
@@ -111,6 +111,30 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
         log::info!("Starting Host Daemon in background...");
         daemon::run().await?;
+    } else if arg == "--start" {
+        log::info!("Starting open-remote-url-host daemon...");
+        match shared::installer::start_daemon("host") {
+            Ok(_) => {
+                println!("Host daemon started successfully!");
+            }
+            Err(e) => {
+                println!("Failed to start host daemon: {}", e);
+                exit(1);
+            }
+        }
+        return Ok(());
+    } else if arg == "--stop" {
+        log::info!("Stopping open-remote-url-host daemon...");
+        match shared::installer::stop_daemon("host") {
+            Ok(_) => {
+                println!("Host daemon stopped successfully!");
+            }
+            Err(e) => {
+                println!("Failed to stop host daemon: {}", e);
+                exit(1);
+            }
+        }
+        return Ok(());
     } else {
         // Unknown argument: show help/status
         print_status();

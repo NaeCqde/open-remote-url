@@ -14,7 +14,7 @@ pub fn run_gui(app_type: &'static str) {
 
     let native_options = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default()
-            .with_inner_size([800.0, 360.0])
+            .with_inner_size([800.0, 420.0])
             .with_resizable(false)
             .with_maximize_button(false),
         ..Default::default()
@@ -65,7 +65,7 @@ impl StatusApp {
     fn new(app_type: &'static str) -> Self {
         let (is_installed, is_running, exe_path, config_path) = crate::installer::check_status(app_type);
         let is_running_from_install_dir = if let Ok(current_exe) = std::env::current_exe() {
-            current_exe == exe_path
+            crate::installer::paths_are_equal(&current_exe, &exe_path)
         } else {
             false
         };
@@ -87,6 +87,11 @@ impl StatusApp {
         self.is_running = is_running;
         self.exe_path = exe_path;
         self.config_path = config_path;
+        self.is_running_from_install_dir = if let Ok(current_exe) = std::env::current_exe() {
+            crate::installer::paths_are_equal(&current_exe, &self.exe_path)
+        } else {
+            false
+        };
     }
 }
 
@@ -158,17 +163,42 @@ impl eframe::App for StatusApp {
                     ui.strong("Configuration:");
                     ui.label(self.config_path.to_string_lossy().to_string());
                     ui.end_row();
+
+                    if self.app_type == "client" {
+                        let config = crate::config::ClientConfig::load();
+                        let host_url_display = if let Some(ref host_url) = config.host_url {
+                            format!("{}/", host_url.trim_end_matches('/'))
+                        } else {
+                            "(please set)".to_string()
+                        };
+                        let client_url_display = format!("http://{}:{}/", config.client_host, config.client_port);
+
+                        ui.strong("Host URL:");
+                        ui.label(host_url_display);
+                        ui.end_row();
+
+                        ui.strong("Client URL:");
+                        ui.label(client_url_display);
+                        ui.end_row();
+                    } else {
+                        let config = crate::config::HostConfig::load();
+                        let host_url_display = format!("http://{}:{}/", config.host, config.port);
+
+                        ui.strong("Host URL:");
+                        ui.label(host_url_display);
+                        ui.end_row();
+                    }
                 });
 
-            ui.add_space(20.0);
+            ui.add_space(15.0);
             ui.separator();
-            ui.add_space(20.0);
+            ui.add_space(15.0);
+
+            let buttons_enabled = !(self.is_running_from_install_dir && !self.is_installed);
 
             // Action Buttons
             ui.horizontal(|ui| {
                 ui.add_space(10.0);
-
-                let buttons_enabled = !(self.is_running_from_install_dir && !self.is_installed);
 
                 let install_text = if self.is_installed {
                     "Reinstall / Update"
@@ -256,9 +286,76 @@ impl eframe::App for StatusApp {
                 }
             });
 
+            ui.add_space(10.0);
+
+            // Daemon Control Buttons Row
+            ui.horizontal(|ui| {
+                ui.add_space(10.0);
+
+                let start_btn = ui.add_enabled(
+                    buttons_enabled && self.is_installed && !self.is_running,
+                    egui::Button::new("Start Daemon").min_size(egui::vec2(140.0, 32.0))
+                );
+                if start_btn.clicked() {
+                    self.message = Some("Starting daemon...".to_string());
+                    self.is_error = false;
+                    ctx.request_repaint();
+                    match crate::installer::start_daemon(self.app_type) {
+                        Ok(_) => {
+                            self.message = Some("Daemon successfully started!".to_string());
+                            self.is_error = false;
+                            // Wait for daemon to start (up to 3 seconds)
+                            let port = if self.app_type == "client" {
+                                crate::config::ClientConfig::load().client_port
+                            } else {
+                                crate::config::HostConfig::load().port
+                            };
+                            for _ in 0..6 {
+                                std::thread::sleep(std::time::Duration::from_millis(500));
+                                if std::net::TcpStream::connect_timeout(
+                                    &std::net::SocketAddr::from(([127, 0, 0, 1], port)),
+                                    std::time::Duration::from_millis(200),
+                                ).is_ok() {
+                                    break;
+                                }
+                            }
+                        }
+                        Err(e) => {
+                            self.message = Some(format!("Failed to start daemon: {}", e));
+                            self.is_error = true;
+                        }
+                    }
+                    self.refresh();
+                }
+
+                ui.add_space(10.0);
+
+                let stop_btn = ui.add_enabled(
+                    buttons_enabled && self.is_installed && self.is_running,
+                    egui::Button::new("Stop Daemon").min_size(egui::vec2(140.0, 32.0))
+                );
+                if stop_btn.clicked() {
+                    self.message = Some("Stopping daemon...".to_string());
+                    self.is_error = false;
+                    ctx.request_repaint();
+                    match crate::installer::stop_daemon(self.app_type) {
+                        Ok(_) => {
+                            self.message = Some("Daemon successfully stopped!".to_string());
+                            self.is_error = false;
+                            std::thread::sleep(std::time::Duration::from_millis(500));
+                        }
+                        Err(e) => {
+                            self.message = Some(format!("Failed to stop daemon: {}", e));
+                            self.is_error = true;
+                        }
+                    }
+                    self.refresh();
+                }
+            });
+
             // Status message feedback
             if let Some(ref msg) = self.message {
-                ui.add_space(20.0);
+                ui.add_space(15.0);
                 ui.vertical_centered(|ui| {
                     let text_color = if self.is_error {
                         egui::Color32::from_rgb(231, 76, 60) // Red

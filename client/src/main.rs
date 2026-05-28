@@ -14,7 +14,7 @@ fn print_status() {
     let host_url_display = if host_url.is_empty() {
         "(please set)".to_string()
     } else {
-        format!("{}/", host_url)
+        format!("{}/", host_url.trim_end_matches('/'))
     };
 
     let mut status_msg = format!(
@@ -23,7 +23,7 @@ fn print_status() {
         - Installed:  {}\n\
         - Running:    {}\n\
         - HOST:       {}\n\
-        - CLIENT:     http://{}:{}",
+        - CLIENT:     http://{}:{}/",
         if is_installed { "Yes" } else { "No" },
         if is_running { "Yes" } else { "No" },
         host_url_display,
@@ -124,6 +124,28 @@ async fn main() -> Result<(), Box<dyn Error>> {
     } else if cmd_or_url == "--daemon" {
         log::info!("Starting open-remote-url-client daemon...");
         daemon::run().await?;
+    } else if cmd_or_url == "--start" {
+        log::info!("Starting open-remote-url-client daemon...");
+        match shared::installer::start_daemon("client") {
+            Ok(_) => {
+                println!("Client daemon started successfully!");
+            }
+            Err(e) => {
+                println!("Failed to start client daemon: {}", e);
+                exit(1);
+            }
+        }
+    } else if cmd_or_url == "--stop" {
+        log::info!("Stopping open-remote-url-client daemon...");
+        match shared::installer::stop_daemon("client") {
+            Ok(_) => {
+                println!("Client daemon stopped successfully!");
+            }
+            Err(e) => {
+                println!("Failed to stop client daemon: {}", e);
+                exit(1);
+            }
+        }
     } else if looks_like_url(cmd_or_url) {
         let config = shared::config::ClientConfig::load();
         let client_port = config.client_port;
