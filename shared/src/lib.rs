@@ -4,7 +4,6 @@ pub mod uninstaller;
 pub mod installer_utils;
 pub mod utils;
 
-#[cfg(any(target_os = "windows", target_os = "macos", target_os = "linux"))]
 pub mod gui;
 
 use serde::{Deserialize, Serialize};

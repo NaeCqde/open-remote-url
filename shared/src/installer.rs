@@ -666,18 +666,9 @@ pub fn start_daemon(app_type: &str) -> Result<(), Box<dyn std::error::Error>> {
 
     // Default fallback (Windows, or if not installed on mac/linux)
     let exe = find_exe_to_start(app_type)?;
-    #[cfg(target_os = "windows")]
-    {
-        crate::utils::create_no_window(std::process::Command::new(&exe))
-            .arg("--daemon")
-            .spawn()?;
-    }
-    #[cfg(not(target_os = "windows"))]
-    {
-        std::process::Command::new(&exe)
-            .arg("--daemon")
-            .spawn()?;
-    }
+    crate::utils::create_no_window(std::process::Command::new(&exe))
+        .arg("--daemon")
+        .spawn()?;
 
     Ok(())
 }

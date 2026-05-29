@@ -154,11 +154,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
     } else if looks_like_url(cmd_or_url) {
         let config = shared::config::ClientConfig::load();
         let client_port = config.client_port;
-
-        #[cfg(target_os = "windows")]
         let daemon_url = format!("http://localhost:{}/open", client_port);
-        #[cfg(not(target_os = "windows"))]
-        let daemon_url = format!("http://{}:{}/open", config.client_host, client_port);
 
         log::info!("Sending URL to local daemon: {}", cmd_or_url);
 
