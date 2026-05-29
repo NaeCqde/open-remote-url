@@ -13,8 +13,6 @@ use std::collections::HashMap;
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct OpenUrlRequest {
     pub url: String,
-    pub ports: Vec<u16>,
-    pub relay_url: String,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]

@@ -247,11 +247,7 @@ async fn run_port_tracker(
                 tokio::spawn(async move {
                     // 1. Immediately send open request to Host Daemon (with empty ports)
                     log::info!("Sending immediate open request for URL: {}", url);
-                    let open_payload = OpenUrlRequest {
-                        url,
-                        ports: vec![],
-                        relay_url: resolved_relay_url_clone.clone(),
-                    };
+                    let open_payload = OpenUrlRequest { url };
 
                     if let Err(e) = send_open_request(&host_url_clone, &open_payload, &passphrase_clone).await {
                         log::error!("Failed to send open request: {}", e);

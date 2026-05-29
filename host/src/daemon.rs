@@ -95,16 +95,10 @@ async fn handle_open_url(
     }
 
     log::info!("Received request to open URL: {}", payload.url);
-    log::info!("Ports to proxy: {:?}", payload.ports);
-    log::info!("Client relay URL: {}", payload.relay_url);
 
     match open::that(&payload.url) {
         Ok(_) => log::info!("Successfully opened URL on Host browser"),
         Err(e) => log::error!("Failed to open URL on Host browser: {}", e),
-    }
-
-    for &port in &payload.ports {
-        start_proxy(port, payload.relay_url.clone(), state.clone()).await;
     }
 
     (StatusCode::OK, "OK").into_response()
