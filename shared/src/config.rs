@@ -202,6 +202,7 @@ impl HostConfig {
 #[derive(Debug, Clone)]
 pub struct ClientConfig {
     pub host_url: Option<String>,
+    pub relay_url: Option<String>,
     pub client_host: String,
     pub client_port: u16,
     pub passphrase: Option<String>,
@@ -209,13 +210,11 @@ pub struct ClientConfig {
 
 impl ClientConfig {
     pub fn load() -> Self {
-        let host_url = env::var("HOST_URL").ok().map(|u| {
-            if u.ends_with('/') {
-                u.trim_end_matches('/').to_string()
-            } else {
-                u
-            }
-        });
+        let strip_trailing_slash = |u: String| u.trim_end_matches('/').to_string();
+        let host_url = env::var("HOST_URL").ok().map(&strip_trailing_slash);
+        let relay_url = env::var("RELAY_URL").ok()
+            .filter(|u| !u.is_empty())
+            .map(strip_trailing_slash);
         let client_host = env::var("CLIENT_HOST").unwrap_or_else(|_| "0.0.0.0".to_string());
         let client_port = env::var("CLIENT_PORT")
             .unwrap_or_else(|_| "3000".to_string())
@@ -224,6 +223,7 @@ impl ClientConfig {
         let passphrase = env::var("PASSPHRASE").ok();
         Self {
             host_url,
+            relay_url,
             client_host,
             client_port,
             passphrase,
