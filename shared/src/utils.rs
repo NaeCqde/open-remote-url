@@ -99,3 +99,13 @@ pub fn attach_console() {
         }
     }
 }
+
+pub fn create_no_window(mut cmd: std::process::Command) -> std::process::Command {
+    #[cfg(target_os = "windows")]
+    {
+        use std::os::windows::process::CommandExt;
+        cmd.creation_flags(0x08000000);
+    }
+    let _ = &mut cmd;
+    cmd
+}

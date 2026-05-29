@@ -68,7 +68,7 @@ fn copy_env_file(app_type: &str) -> Result<(), Box<dyn std::error::Error>> {
     let config_dir = target_env.parent().ok_or("Invalid config dir")?;
     fs::create_dir_all(config_dir)?;
 
-    let source_env = find_inactive_env_path(app_type);
+    let source_env = crate::config::find_inactive_env_path(app_type);
 
     if source_env.exists() {
         log::info!(
@@ -117,7 +117,7 @@ pub fn install(app_type: &str) -> Result<(), Box<dyn std::error::Error>> {
 
         let _ = copy_script_files(&install_dir);
 
-        std::process::Command::new(&target_exe)
+        crate::utils::create_no_window(std::process::Command::new(&target_exe))
             .arg("--daemon")
             .spawn()?;
     }
@@ -171,56 +171,7 @@ pub fn install(app_type: &str) -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
-fn find_inactive_env_path(app_type: &str) -> PathBuf {
-    if let Ok(current_exe) = env::current_exe() {
-        if let Some(parent) = current_exe.parent() {
-            // First check if there is an app_type-specific inactive.env under parent
-            let p_app_type = parent.join(app_type).join("inactive.env");
-            if p_app_type.exists() {
-                return p_app_type;
-            }
 
-            let exe_dir_str = parent.to_string_lossy();
-            if exe_dir_str.contains(".app/Contents/MacOS") {
-                if let Some(contents) = parent.parent() {
-                    if let Some(app_root) = contents.parent() {
-                        if let Some(app_parent) = app_root.parent() {
-                            let p_app_type = app_parent.join(app_type).join("inactive.env");
-                            if p_app_type.exists() {
-                                return p_app_type;
-                            }
-                            let p = app_parent.join("inactive.env");
-                            if p.exists() {
-                                return p;
-                            }
-                        }
-                    }
-                }
-            }
-
-            // Skip checking parent.join("inactive.env") if we are running from a target directory
-            let is_in_target = exe_dir_str.contains("target/release")
-                || exe_dir_str.contains("target/debug")
-                || exe_dir_str.contains("target/x86_64")
-                || exe_dir_str.contains("target/aarch64");
-            if !is_in_target {
-                let p = parent.join("inactive.env");
-                if p.exists() {
-                    return p;
-                }
-            }
-        }
-    }
-    let p_app_type = env::current_dir().unwrap_or_default().join(app_type).join("inactive.env");
-    if p_app_type.exists() {
-        return p_app_type;
-    }
-    let p = env::current_dir().unwrap_or_default().join("inactive.env");
-    if p.exists() {
-        return p;
-    }
-    p
-}
 
 pub fn check_status(app_type: &str) -> (bool, bool, PathBuf, PathBuf) {
     #[cfg(target_os = "windows")]
@@ -262,7 +213,7 @@ pub fn check_status(app_type: &str) -> (bool, bool, PathBuf, PathBuf) {
 
     #[cfg(target_os = "windows")]
     let is_installed = {
-        let status = std::process::Command::new("reg")
+        let status = crate::utils::create_no_window(std::process::Command::new("reg"))
             .args(&[
                 "query",
                 "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run",
@@ -311,7 +262,7 @@ pub fn check_status(app_type: &str) -> (bool, bool, PathBuf, PathBuf) {
     let config_path = if is_installed {
         crate::config::get_config_path(app_type)
     } else {
-        find_inactive_env_path(app_type)
+        crate::config::find_inactive_env_path(app_type)
     };
 
     (is_installed, is_running, exe_path, config_path)
@@ -325,7 +276,7 @@ fn setup_windows_startup(
     binary_path: &Path,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let binary_str = format!("\"{}\" --daemon", binary_path.to_string_lossy());
-    let status = std::process::Command::new("reg")
+    let status = crate::utils::create_no_window(std::process::Command::new("reg"))
         .args(&[
             "add",
             "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run",
@@ -366,7 +317,7 @@ fn setup_windows_browser(binary_path: &Path) -> Result<(), Box<dyn std::error::E
             args.push("/v");
             args.push(value_name);
         }
-        std::process::Command::new("reg").args(&args).status()?;
+        crate::utils::create_no_window(std::process::Command::new("reg")).args(&args).status()?;
     }
 
     Ok(())
@@ -803,7 +754,7 @@ pub fn start_daemon(app_type: &str) -> Result<(), Box<dyn std::error::Error>> {
     let exe = find_exe_to_start(app_type)?;
     #[cfg(target_os = "windows")]
     {
-        std::process::Command::new(&exe)
+        crate::utils::create_no_window(std::process::Command::new(&exe))
             .arg("--daemon")
             .spawn()?;
     }
@@ -855,7 +806,7 @@ pub fn stop_daemon(app_type: &str) -> Result<(), Box<dyn std::error::Error>> {
     #[cfg(target_os = "windows")]
     {
         let current_pid = std::process::id();
-        let _ = std::process::Command::new("taskkill")
+        let _ = crate::utils::create_no_window(std::process::Command::new("taskkill"))
             .args(&[
                 "/F",
                 "/FI",

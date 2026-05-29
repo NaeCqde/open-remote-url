@@ -33,7 +33,7 @@ pub(crate) fn stop_and_unregister(app_type: &str) -> Result<(), Box<dyn std::err
     #[cfg(target_os = "windows")]
     {
         let current_pid = std::process::id();
-        let _ = std::process::Command::new("taskkill")
+        let _ = crate::utils::create_no_window(std::process::Command::new("taskkill"))
             .args(&[
                 "/F",
                 "/FI",
@@ -43,7 +43,7 @@ pub(crate) fn stop_and_unregister(app_type: &str) -> Result<(), Box<dyn std::err
             ])
             .status();
 
-        let _ = std::process::Command::new("reg")
+        let _ = crate::utils::create_no_window(std::process::Command::new("reg"))
             .args(&[
                 "delete",
                 "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run",
@@ -59,12 +59,12 @@ pub(crate) fn stop_and_unregister(app_type: &str) -> Result<(), Box<dyn std::err
                 "HKCU\\Software\\Classes\\OpenRemoteURLClient",
             ];
             for key in keys {
-                let _ = std::process::Command::new("reg")
+                let _ = crate::utils::create_no_window(std::process::Command::new("reg"))
                     .args(&["delete", key, "/f"])
                     .status();
             }
 
-            let _ = std::process::Command::new("reg")
+            let _ = crate::utils::create_no_window(std::process::Command::new("reg"))
                 .args(&[
                     "delete",
                     "HKCU\\Software\\RegisteredApplications",
