@@ -3,7 +3,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 pub use crate::uninstaller::uninstall;
-use crate::installer_utils::{binary_name, stop_and_unregister};
+use crate::installer_utils::{app_name, binary_name, install_dir, installed_exe_path, stop_and_unregister};
 
 #[cfg(target_os = "macos")]
 use crate::installer_utils::plist_label;
@@ -96,13 +96,9 @@ pub fn install(app_type: &str) -> Result<(), Box<dyn std::error::Error>> {
 
     #[cfg(target_os = "windows")]
     {
-        let local_app_data = env::var("LOCALAPPDATA")?;
-        let install_dir = PathBuf::from(local_app_data)
-            .join("Programs")
-            .join("open-remote-url")
-            .join(app_type);
-        fs::create_dir_all(&install_dir)?;
-        let target_exe = install_dir.join(format!("{}.exe", binary_name(app_type)));
+        let inst_dir = install_dir(app_type);
+        fs::create_dir_all(&inst_dir)?;
+        let target_exe = installed_exe_path(app_type);
 
         copy_env_file(app_type)?;
 
@@ -115,7 +111,7 @@ pub fn install(app_type: &str) -> Result<(), Box<dyn std::error::Error>> {
             setup_windows_browser(&target_exe)?;
         }
 
-        let _ = copy_script_files(&install_dir);
+        let _ = copy_script_files(&inst_dir);
 
         crate::utils::create_no_window(std::process::Command::new(&target_exe))
             .arg("--daemon")
@@ -132,31 +128,21 @@ pub fn install(app_type: &str) -> Result<(), Box<dyn std::error::Error>> {
 
         copy_env_file(app_type)?;
 
-        let app_name = if app_type == "client" {
-            "OpenRemoteURLClient"
-        } else {
-            "OpenRemoteURLHost"
-        };
-        let app_path = apps_dir.join(format!("{}.app", app_name));
-        register_macos_app(&app_path);
+        let app_dir = install_dir(app_type);
+        register_macos_app(&app_dir);
         setup_macos_launchagent(app_type, &target_exe)?;
 
-        copy_script_files(&app_path)?;
+        copy_script_files(&app_dir)?;
     }
 
     #[cfg(target_os = "linux")]
     {
-        let home = env::var("HOME")?;
-        let bin_dir = PathBuf::from(home)
-            .join(".local")
-            .join("bin")
-            .join("open-remote-url")
-            .join(app_type);
+        let bin_dir = install_dir(app_type);
         fs::create_dir_all(&bin_dir)?;
 
         copy_env_file(app_type)?;
 
-        let target_exe = bin_dir.join(binary_name(app_type));
+        let target_exe = installed_exe_path(app_type);
         if current_exe != target_exe {
             fs::copy(&current_exe, &target_exe)?;
         }
@@ -174,42 +160,7 @@ pub fn install(app_type: &str) -> Result<(), Box<dyn std::error::Error>> {
 
 
 pub fn check_status(app_type: &str) -> (bool, bool, PathBuf, PathBuf) {
-    #[cfg(target_os = "windows")]
-    let exe_path = {
-        let local_app_data = env::var("LOCALAPPDATA").unwrap_or_default();
-        PathBuf::from(local_app_data)
-            .join("Programs")
-            .join("open-remote-url")
-            .join(app_type)
-            .join(format!("{}.exe", binary_name(app_type)))
-    };
-
-    #[cfg(target_os = "macos")]
-    let exe_path = {
-        let home = env::var("HOME").unwrap_or_default();
-        let apps_dir = PathBuf::from(home).join("Applications");
-        let app_name = if app_type == "client" {
-            "OpenRemoteURLClient"
-        } else {
-            "OpenRemoteURLHost"
-        };
-        apps_dir
-            .join(format!("{}.app", app_name))
-            .join("Contents")
-            .join("MacOS")
-            .join(binary_name(app_type))
-    };
-
-    #[cfg(target_os = "linux")]
-    let exe_path = {
-        let home = env::var("HOME").unwrap_or_default();
-        PathBuf::from(home)
-            .join(".local")
-            .join("bin")
-            .join("open-remote-url")
-            .join(app_type)
-            .join(binary_name(app_type))
-    };
+    let exe_path = installed_exe_path(app_type);
 
     #[cfg(target_os = "windows")]
     let is_installed = {
@@ -247,11 +198,7 @@ pub fn check_status(app_type: &str) -> (bool, bool, PathBuf, PathBuf) {
 
     crate::config::load_env(app_type);
 
-    let port = if app_type == "client" {
-        crate::config::ClientConfig::load().client_port
-    } else {
-        crate::config::HostConfig::load().port
-    };
+    let port = crate::config::get_daemon_port(app_type);
 
     let is_running = std::net::TcpStream::connect_timeout(
         &std::net::SocketAddr::from(([127, 0, 0, 1], port)),
@@ -359,12 +306,8 @@ fn setup_macos_app_bundle(
     install_dir: &Path,
     current_exe: &Path,
 ) -> Result<PathBuf, Box<dyn std::error::Error>> {
-    let app_name = if app_type == "client" {
-        "OpenRemoteURLClient"
-    } else {
-        "OpenRemoteURLHost"
-    };
-    let app_dir = install_dir.join(format!("{}.app", app_name));
+    let name = app_name(app_type);
+    let app_dir = install_dir.join(format!("{}.app", name));
     let bin_name = binary_name(app_type);
     let target_exe = app_dir.join("Contents").join("MacOS").join(bin_name);
 
@@ -408,7 +351,7 @@ fn setup_macos_app_bundle(
 </dict>
 </plist>
 "#,
-            app_type, app_name, bin_name
+            app_type, name, bin_name
         );
         fs::write(info_plist, plist_content)?;
     }
@@ -475,7 +418,7 @@ fn setup_macos_app_bundle(
 </plist>
 "#,
             app_type,
-            app_name,
+            name,
             binary_name(app_type),
         );
         log::info!("Writing Info.plist with URL scheme registration to {:?}", info_plist);
@@ -676,36 +619,7 @@ pub fn paths_are_equal(p1: &Path, p2: &Path) -> bool {
 }
 
 fn find_exe_to_start(app_type: &str) -> Result<PathBuf, Box<dyn std::error::Error>> {
-    #[cfg(target_os = "windows")]
-    let local_path = {
-        let local_app_data = env::var("LOCALAPPDATA")?;
-        PathBuf::from(local_app_data)
-            .join("Programs")
-            .join("open-remote-url")
-            .join(app_type)
-            .join(format!("{}.exe", binary_name(app_type)))
-    };
-    #[cfg(target_os = "macos")]
-    let local_path = {
-        let home = env::var("HOME")?;
-        PathBuf::from(home)
-            .join("Applications")
-            .join(if app_type == "client" { "OpenRemoteURLClient.app" } else { "OpenRemoteURLHost.app" })
-            .join("Contents")
-            .join("MacOS")
-            .join(binary_name(app_type))
-    };
-    #[cfg(target_os = "linux")]
-    let local_path = {
-        let home = env::var("HOME")?;
-        PathBuf::from(home)
-            .join(".local")
-            .join("bin")
-            .join("open-remote-url")
-            .join(app_type)
-            .join(binary_name(app_type))
-    };
-
+    let local_path = installed_exe_path(app_type);
     if local_path.exists() {
         Ok(local_path)
     } else {

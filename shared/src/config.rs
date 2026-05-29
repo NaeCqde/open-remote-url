@@ -156,6 +156,31 @@ pub fn show_config(app_type: &str) -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
+/// Returns the port that the daemon listens on for the given app_type.
+pub fn get_daemon_port(app_type: &str) -> u16 {
+    if app_type == "client" {
+        ClientConfig::load().client_port
+    } else {
+        HostConfig::load().port
+    }
+}
+
+/// Waits up to `timeout` for the daemon to start accepting connections on the given port.
+pub fn wait_for_daemon_start(port: u16, timeout: std::time::Duration) {
+    let start = std::time::Instant::now();
+    while start.elapsed() < timeout {
+        if std::net::TcpStream::connect_timeout(
+            &std::net::SocketAddr::from(([127, 0, 0, 1], port)),
+            std::time::Duration::from_millis(200),
+        )
+        .is_ok()
+        {
+            return;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(500));
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct HostConfig {
     pub host: String,

@@ -74,15 +74,20 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
     let args: Vec<String> = env::args().collect();
 
-    #[cfg(any(target_os = "windows", target_os = "macos", target_os = "linux"))]
+    #[cfg(target_os = "windows")]
     {
-        let should_show_gui = args.len() < 2 && shared::utils::is_double_clicked();
-        if should_show_gui {
+        if args.len() < 2 {
             shared::gui::run_gui("client");
             exit(0);
         } else {
-            #[cfg(target_os = "windows")]
             shared::utils::attach_console();
+        }
+    }
+    #[cfg(any(target_os = "macos", target_os = "linux"))]
+    {
+        if args.len() < 2 && shared::utils::is_double_clicked() {
+            shared::gui::run_gui("client");
+            exit(0);
         }
     }
 

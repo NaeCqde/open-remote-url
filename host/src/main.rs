@@ -1,10 +1,14 @@
+#![cfg_attr(target_os = "windows", windows_subsystem = "windows")]
+
 mod daemon;
 
 use std::env;
+use std::error::Error;
 use std::process::exit;
 
 fn print_status() {
-    let (is_installed, is_running, exe_path, config_path) = shared::installer::check_status("host");
+    let (is_installed, is_running, exe_path, config_path) =
+        shared::installer::check_status("host");
     let config = shared::config::HostConfig::load();
 
     let mut status_msg = format!(
@@ -52,34 +56,42 @@ fn print_status() {
 }
 
 #[tokio::main]
-async fn main() -> Result<(), Box<dyn std::error::Error>> {
+async fn main() -> Result<(), Box<dyn Error>> {
     env_logger::init_from_env(env_logger::Env::new().default_filter_or("info"));
     shared::config::load_env("host");
 
     let args: Vec<String> = env::args().collect();
+
+    #[cfg(target_os = "windows")]
+    {
+        if args.len() < 2 {
+            shared::gui::run_gui("host");
+            exit(0);
+        } else {
+            shared::utils::attach_console();
+        }
+    }
+    #[cfg(any(target_os = "macos", target_os = "linux"))]
+    {
+        if args.len() < 2 && shared::utils::is_double_clicked() {
+            shared::gui::run_gui("host");
+            exit(0);
+        }
+    }
+
     if args.len() >= 2 && args[1] == "--config" {
         let _ = shared::config::show_config("host");
         exit(0);
     }
 
     if args.len() < 2 {
-        #[cfg(any(target_os = "windows", target_os = "macos", target_os = "linux"))]
-        {
-            if shared::utils::is_double_clicked() {
-                #[cfg(target_os = "windows")]
-                shared::utils::detach_console();
-
-                shared::gui::run_gui("host");
-                exit(0);
-            }
-        }
         print_status();
         exit(0);
     }
 
-    let arg = &args[1];
+    let cmd_or_url = &args[1];
 
-    if arg == "--install" {
+    if cmd_or_url == "--install" {
         log::info!("Installing open-remote-url-host...");
         match shared::installer::install("host") {
             Ok(_) => {
@@ -91,8 +103,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 exit(1);
             }
         }
-        return Ok(());
-    } else if arg == "--uninstall" {
+    } else if cmd_or_url == "--uninstall" {
         log::info!("Uninstalling open-remote-url-host...");
         match shared::installer::uninstall("host") {
             Ok(_) => {
@@ -103,15 +114,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 exit(1);
             }
         }
-        return Ok(());
-    } else if arg == "--daemon" {
-        // Hide/detach console on Windows if running in background daemon mode
-        #[cfg(target_os = "windows")]
-        shared::utils::detach_console();
-
-        log::info!("Starting Host Daemon in background...");
+    } else if cmd_or_url == "--daemon" {
+        log::info!("Starting open-remote-url-host daemon...");
         daemon::run().await?;
-    } else if arg == "--start" {
+    } else if cmd_or_url == "--start" {
         log::info!("Starting open-remote-url-host daemon...");
         match shared::installer::start_daemon("host") {
             Ok(_) => {
@@ -122,8 +128,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 exit(1);
             }
         }
-        return Ok(());
-    } else if arg == "--stop" {
+    } else if cmd_or_url == "--stop" {
         log::info!("Stopping open-remote-url-host daemon...");
         match shared::installer::stop_daemon("host") {
             Ok(_) => {
@@ -134,7 +139,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 exit(1);
             }
         }
-        return Ok(());
     } else {
         // Unknown argument: show help/status
         print_status();
