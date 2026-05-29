@@ -121,6 +121,31 @@ fn main() {
                 );
                 fs::write(info_plist, plist_content).expect("Failed to write Info.plist");
                 println!("cargo:warning={} macOS app bundle created successfully.", app_name);
+
+                // Create a flat, uncompressed zip containing the .app at the root
+                let zip_name = format!("{}.zip", app_name);
+                let zip_path = out_dir.join(&zip_name);
+                if zip_path.exists() {
+                    fs::remove_file(&zip_path).ok();
+                }
+                let status = std::process::Command::new("zip")
+                    .arg("-r")
+                    .arg("-0") // store only, no compression
+                    .arg(&zip_path)
+                    .arg(format!("{}.app", app_name))
+                    .current_dir(&out_dir)
+                    .status();
+                match status {
+                    Ok(s) if s.success() => {
+                        println!("cargo:warning={} created (uncompressed).", zip_name);
+                    }
+                    Ok(s) => {
+                        println!("cargo:warning=zip exited with status {} for {}.", s, zip_name);
+                    }
+                    Err(e) => {
+                        println!("cargo:warning=Failed to run zip for {}: {}", zip_name, e);
+                    }
+                }
             }
         }
     }
