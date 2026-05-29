@@ -2,7 +2,7 @@ use axum::{
     extract::State,
     http::{HeaderMap, StatusCode},
     response::IntoResponse,
-    routing::post,
+    routing::{get, post},
     Json, Router,
 };
 use base64::prelude::*;
@@ -45,6 +45,7 @@ pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
     });
 
     let app = Router::new()
+        .route("/", get(|| async { "alive" }))
         .route("/open", post(handle_open))
         .route("/proxy", post(handle_proxy))
         .with_state(state);

@@ -45,6 +45,15 @@ pub fn run_gui(app_type: &'static str) {
             style.visuals = visuals;
             cc.egui_ctx.set_style(style);
             
+            // Spawn background thread to request repaint every 1 second
+            let ctx_clone = cc.egui_ctx.clone();
+            std::thread::spawn(move || {
+                loop {
+                    std::thread::sleep(std::time::Duration::from_secs(1));
+                    ctx_clone.request_repaint();
+                }
+            });
+            
             Ok(Box::new(StatusApp::new(app_type)))
         }),
     );

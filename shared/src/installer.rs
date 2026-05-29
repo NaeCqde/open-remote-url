@@ -68,14 +68,7 @@ fn copy_env_file(app_type: &str) -> Result<(), Box<dyn std::error::Error>> {
     let config_dir = target_env.parent().ok_or("Invalid config dir")?;
     fs::create_dir_all(config_dir)?;
 
-    let mut source_env = env::current_dir()?.join("inactive.env");
-    if !source_env.exists() {
-        if let Ok(current_exe) = env::current_exe() {
-            if let Some(parent) = current_exe.parent() {
-                source_env = parent.join("inactive.env");
-            }
-        }
-    }
+    let source_env = find_inactive_env_path(app_type);
 
     if source_env.exists() {
         log::info!(
@@ -181,36 +174,50 @@ pub fn install(app_type: &str) -> Result<(), Box<dyn std::error::Error>> {
 fn find_inactive_env_path(app_type: &str) -> PathBuf {
     if let Ok(current_exe) = env::current_exe() {
         if let Some(parent) = current_exe.parent() {
-            let p = parent.join("inactive.env");
-            if p.exists() {
-                return p;
+            // First check if there is an app_type-specific inactive.env under parent
+            let p_app_type = parent.join(app_type).join("inactive.env");
+            if p_app_type.exists() {
+                return p_app_type;
             }
+
             let exe_dir_str = parent.to_string_lossy();
             if exe_dir_str.contains(".app/Contents/MacOS") {
                 if let Some(contents) = parent.parent() {
                     if let Some(app_root) = contents.parent() {
                         if let Some(app_parent) = app_root.parent() {
-                            let p = app_parent.join("inactive.env");
-                            if p.exists() {
-                                return p;
-                            }
                             let p_app_type = app_parent.join(app_type).join("inactive.env");
                             if p_app_type.exists() {
                                 return p_app_type;
+                            }
+                            let p = app_parent.join("inactive.env");
+                            if p.exists() {
+                                return p;
                             }
                         }
                     }
                 }
             }
+
+            // Skip checking parent.join("inactive.env") if we are running from a target directory
+            let is_in_target = exe_dir_str.contains("target/release")
+                || exe_dir_str.contains("target/debug")
+                || exe_dir_str.contains("target/x86_64")
+                || exe_dir_str.contains("target/aarch64");
+            if !is_in_target {
+                let p = parent.join("inactive.env");
+                if p.exists() {
+                    return p;
+                }
+            }
         }
-    }
-    let p = env::current_dir().unwrap_or_default().join("inactive.env");
-    if p.exists() {
-        return p;
     }
     let p_app_type = env::current_dir().unwrap_or_default().join(app_type).join("inactive.env");
     if p_app_type.exists() {
         return p_app_type;
+    }
+    let p = env::current_dir().unwrap_or_default().join("inactive.env");
+    if p.exists() {
+        return p;
     }
     p
 }
