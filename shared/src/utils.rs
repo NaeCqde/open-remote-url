@@ -3,11 +3,21 @@ pub fn is_double_clicked() -> bool {
     {
         extern "system" {
             fn GetConsoleProcessList(lpdwProcessList: *mut u32, dwProcessCount: u32) -> u32;
+            fn AttachConsole(dwProcessId: u32) -> i32;
+            fn FreeConsole() -> i32;
         }
         unsafe {
             let mut buffer = [0u32; 2];
             let count = GetConsoleProcessList(buffer.as_mut_ptr(), 2);
-            return count == 1;
+            if count > 0 {
+                return count == 1;
+            } else {
+                if AttachConsole(0xFFFFFFFF) != 0 {
+                    let _ = FreeConsole();
+                    return false;
+                }
+                return true;
+            }
         }
     }
 
