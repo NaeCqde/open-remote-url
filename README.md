@@ -92,29 +92,29 @@ Running the installer script automatically copies the `inactive.env` from the in
 ### Host Config (`host/inactive.env`)
 
 ```env
-LISTEN=0.0.0.0:4000
+LISTEN=0.0.0.0:40000
 PASSPHRASE=some-shared-secret
 ```
 
 | Variable | Description | Default |
 |---|---|---|
-| `LISTEN` | Bind address and port (`<host>:<port>`). | `0.0.0.0:4000` |
+| `LISTEN` | Bind address and port (`<host>:<port>`). | `0.0.0.0:40000` |
 | `PASSPHRASE` | Shared passphrase. Leave empty to disable authentication. | _(empty)_ |
 
 ### Client Config (`client/inactive.env`)
 
 ```env
-LISTEN=0.0.0.0:3000
-HOST_URL=http://<host_ip>:4000
-RELAY_URL=http://<client_ip>:3000
+LISTEN=0.0.0.0:30000
+HOST_URL=http://<host_ip>:40000
+RELAY_URL=http://<client_ip>:30000
 PASSPHRASE=some-shared-secret
 ```
 
 | Variable | Description | Default |
 |---|---|---|
-| `LISTEN` | Bind address and port for the Client daemon (`<host>:<port>`). | `0.0.0.0:3000` |
-| `HOST_URL` | URL of the remote Host daemon. Supports `http://` and `https://` (TLS via rustls, no OpenSSL required). | `http://localhost:4000` |
-| `RELAY_URL` | URL that the Host uses to call back into this Client for reverse proxying. Must be reachable from the Host machine — use the Client's LAN/Tailscale IP, not `0.0.0.0`. | `http://localhost:3000` |
+| `LISTEN` | Bind address and port for the Client daemon (`<host>:<port>`). | `0.0.0.0:30000` |
+| `HOST_URL` | URL of the remote Host daemon. Supports `http://` and `https://` (TLS via rustls, no OpenSSL required). | `http://localhost:40000` |
+| `RELAY_URL` | URL that the Host uses to call back into this Client for reverse proxying. Must be reachable from the Host machine — use the Client's LAN/Tailscale IP, not `0.0.0.0`. | `http://localhost:30000` |
 | `PASSPHRASE` | Key matching the Host's passphrase. Leave empty to disable authentication. | _(empty)_ |
 
 ---
@@ -163,7 +163,7 @@ Open Remote URL - Host Status
 [Status]
 - Installed:  Yes
 - Running:    Yes
-- Listen:     http://0.0.0.0:4000/
+- Listen:     http://0.0.0.0:40000/
 - Auth:       Enabled
 - Executable: /Users/<username>/Applications/OpenRemoteURLHost.app/Contents/MacOS/open-remote-url-host
 - Config:     /Users/<username>/Applications/OpenRemoteURLHost.app/.env
@@ -185,9 +185,9 @@ Open Remote URL - Client Status
 [Status]
 - Installed:  Yes
 - Running:    Yes
-- Listen:     http://0.0.0.0:3000/
-- RELAY:      http://192.168.1.20:3000/
-- HOST:       http://192.168.1.10:4000/
+- Listen:     http://0.0.0.0:30000/
+- RELAY:      http://192.168.1.20:30000/
+- HOST:       http://192.168.1.10:40000/
 - Auth:       Enabled
 - Executable: /Users/<username>/Applications/OpenRemoteURLClient.app/Contents/MacOS/open-remote-url-client
 - Config:     /Users/<username>/Applications/OpenRemoteURLClient.app/.env

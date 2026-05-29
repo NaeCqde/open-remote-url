@@ -92,24 +92,24 @@
 ### ホスト設定（メインPC側: `host/inactive.env`）
 
 ```env
-LISTEN=0.0.0.0:4000
+LISTEN=0.0.0.0:40000
 PASSPHRASE=二人だけの合言葉
 ```
 
-- `LISTEN`: 待ち受けアドレスとポート番号（`アドレス:ポート` の形式。どこからでも受け付けるなら `0.0.0.0:4000`）
+- `LISTEN`: 待ち受けアドレスとポート番号（`アドレス:ポート` の形式。どこからでも受け付けるなら `0.0.0.0:40000`）
 - `PASSPHRASE`: クライアントPCと一致させる合言葉。空欄にすると合言葉なしで動作。
 
 ### クライアント設定（サブPCや仮想環境側: `client/inactive.env`）
 
 ```env
-LISTEN=0.0.0.0:3000
-HOST_URL=http://<ホストのIPアドレス>:4000
-RELAY_URL=http://<クライアントのIPアドレス>:3000
+LISTEN=0.0.0.0:30000
+HOST_URL=http://<ホストのIPアドレス>:40000
+RELAY_URL=http://<クライアントのIPアドレス>:30000
 PASSPHRASE=二人だけの合言葉
 ```
 
 - `LISTEN`: クライアントデーモンの待ち受けアドレスとポート番号（`アドレス:ポート` の形式）
-- `HOST_URL`: メインPCの住所（例: `http://<ホストのIPアドレス>:4000`）
+- `HOST_URL`: メインPCの住所（例: `http://<ホストのIPアドレス>:40000`）
 - `RELAY_URL`: メインPC（ホスト）がサブPC（クライアント）に折り返す際のURL。メインPC側から到達できるアドレスを指定（LAN IPやTailscale IP等。`0.0.0.0` は接続先として指定できないので注意）。
 - `PASSPHRASE`: メインPC側と一致する合言葉。空欄にすると合言葉なしで動作。
 
@@ -147,7 +147,7 @@ Open Remote URL - Host Status
 [Status]
 - Installed:  Yes (インストールされています)
 - Running:    Yes (稼働中です)
-- Listen:     http://0.0.0.0:4000/
+- Listen:     http://0.0.0.0:40000/
 - Auth:       Enabled
 - Executable: /Users/<ユーザー名>/Applications/OpenRemoteURLHost.app/Contents/MacOS/open-remote-url-host
 - Config:     /Users/<ユーザー名>/Applications/OpenRemoteURLHost.app/.env
@@ -169,9 +169,9 @@ Open Remote URL - Client Status
 [Status]
 - Installed:  Yes (インストールされています)
 - Running:    Yes (稼働中です)
-- Listen:     http://0.0.0.0:3000/
-- RELAY:      http://192.168.1.20:3000/
-- HOST:       http://192.168.1.10:4000/
+- Listen:     http://0.0.0.0:30000/
+- RELAY:      http://192.168.1.20:30000/
+- HOST:       http://192.168.1.10:40000/
 - Auth:       Enabled
 - Executable: /Users/<ユーザー名>/Applications/OpenRemoteURLClient.app/Contents/MacOS/open-remote-url-client
 - Config:     /Users/<ユーザー名>/Applications/OpenRemoteURLClient.app/.env

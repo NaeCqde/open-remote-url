@@ -193,7 +193,7 @@ pub struct HostConfig {
 
 impl HostConfig {
     pub fn load() -> Self {
-        let listen = env::var("LISTEN").unwrap_or_else(|_| "0.0.0.0:4000".to_string());
+        let listen = env::var("LISTEN").unwrap_or_else(|_| "0.0.0.0:40000".to_string());
         let (bind_host, port) = parse_listen(&listen);
         let passphrase = env::var("PASSPHRASE").ok().filter(|s| !s.is_empty());
         Self { listen, bind_host, port, passphrase }
@@ -213,12 +213,12 @@ pub struct ClientConfig {
 impl ClientConfig {
     pub fn load() -> Self {
         let strip_slash = |u: String| u.trim_end_matches('/').to_string();
-        let listen = env::var("LISTEN").unwrap_or_else(|_| "0.0.0.0:3000".to_string());
+        let listen = env::var("LISTEN").unwrap_or_else(|_| "0.0.0.0:30000".to_string());
         let (client_host, client_port) = parse_listen(&listen);
         let host_url = env::var("HOST_URL").map(strip_slash)
-            .unwrap_or_else(|_| "http://localhost:4000".to_string());
+            .unwrap_or_else(|_| "http://localhost:40000".to_string());
         let relay_url = env::var("RELAY_URL").map(strip_slash)
-            .unwrap_or_else(|_| "http://localhost:3000".to_string());
+            .unwrap_or_else(|_| "http://localhost:30000".to_string());
         let passphrase = env::var("PASSPHRASE").ok().filter(|s| !s.is_empty());
         Self { listen, client_host, client_port, host_url, relay_url, passphrase }
     }
