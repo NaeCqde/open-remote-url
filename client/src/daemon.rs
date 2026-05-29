@@ -8,7 +8,7 @@ use axum::{
 use base64::prelude::*;
 use shared::{OpenUrlRequest, PortAction, PortsRequest, ProxyRequest, ProxyResponse};
 use std::collections::{HashMap, HashSet, VecDeque};
-use std::net::{SocketAddr, UdpSocket};
+use std::net::SocketAddr;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 use tokio::sync::mpsc;
@@ -28,7 +28,8 @@ pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
     let client_host = config.client_host;
     let client_port = config.client_port;
     let passphrase = config.passphrase;
-    let host_url = config.host_url.expect("HOST_URL is not set in .env");
+    let host_url = config.host_url;
+    let relay_url = config.relay_url;
 
     let (tx_open_url, rx_open_url) = mpsc::channel::<String>(100);
 
@@ -39,7 +40,9 @@ pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
 
     // Start background port-tracking loop
     tokio::spawn(async move {
-        if let Err(e) = run_port_tracker(rx_open_url, host_url, client_port, passphrase).await {
+        if let Err(e) =
+            run_port_tracker(rx_open_url, host_url, client_port, passphrase, relay_url).await
+        {
             log::error!("Port tracker error: {}", e);
         }
     });
@@ -51,7 +54,11 @@ pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
         .with_state(state);
 
     let addr: SocketAddr = format!("{}:{}", client_host, client_port).parse()?;
-    log::info!("Relay server listening on {}", addr);
+    log::info!(
+        "Client Daemon listening on http://{}:{}",
+        client_host,
+        client_port
+    );
     let listener = match tokio::net::TcpListener::bind(addr).await {
         Ok(l) => l,
         Err(e) => {
@@ -180,13 +187,13 @@ async fn run_port_tracker(
     host_url: String,
     client_port: u16,
     passphrase: Option<String>,
+    relay_url: String,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let mut history: VecDeque<(Instant, HashSet<u16>)> = VecDeque::new();
     let mut interval = tokio::time::interval(Duration::from_millis(500));
     let sent_ports = Arc::new(std::sync::Mutex::new(HashSet::<u16>::new()));
 
-    let local_ip = get_local_ip().unwrap_or_else(|| "127.0.0.1".to_string());
-    let resolved_relay_url = format!("http://{}:{}", local_ip, client_port);
+    let resolved_relay_url = relay_url;
 
     loop {
         tokio::select! {
@@ -354,11 +361,4 @@ fn get_listening_ports() -> Result<HashSet<u16>, Box<dyn std::error::Error>> {
         }
     }
     Ok(ports)
-}
-
-fn get_local_ip() -> Option<String> {
-    let socket = UdpSocket::bind("0.0.0.0:0").ok()?;
-    socket.connect("8.8.8.8:80").ok()?;
-    let local_addr = socket.local_addr().ok()?;
-    Some(local_addr.ip().to_string())
 }

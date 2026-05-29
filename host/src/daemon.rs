@@ -38,7 +38,7 @@ struct ProxyState {
 
 pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
     let config = shared::config::HostConfig::load();
-    let host_bind = config.host;
+    let bind_host = config.bind_host;
     let port = config.port;
     let passphrase = config.passphrase;
 
@@ -56,8 +56,8 @@ pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
         .route("/ports", post(handle_ports))
         .with_state(state);
 
-    let addr: SocketAddr = format!("{}:{}", host_bind, port).parse()?;
-    log::info!("Host Daemon listening on {}", addr);
+    let addr: SocketAddr = format!("{}:{}", bind_host, port).parse()?;
+    log::info!("Host Daemon listening on http://{}:{}", bind_host, port);
     let listener = match tokio::net::TcpListener::bind(addr).await {
         Ok(l) => l,
         Err(e) => {

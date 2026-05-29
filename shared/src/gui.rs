@@ -197,12 +197,8 @@ impl eframe::App for StatusApp {
 
                     if self.app_type == "client" {
                         let config = crate::config::ClientConfig::load();
-                        let host_url_display = if let Some(ref host_url) = config.host_url {
-                            format!("{}/", host_url.trim_end_matches('/'))
-                        } else {
-                            "(please set)".to_string()
-                        };
-                        let client_url_display = format!("http://{}:{}/", config.client_host, config.client_port);
+                        let host_url_display = format!("{}/", config.host_url.trim_end_matches('/'));
+                        let client_url_display = format!("http://{}/", config.listen);
 
                         ui.strong("Host URL:");
                         ui.label(host_url_display);
@@ -211,12 +207,34 @@ impl eframe::App for StatusApp {
                         ui.strong("Client URL:");
                         ui.label(client_url_display);
                         ui.end_row();
+
+                        ui.strong("Auth:");
+                        if config.passphrase.is_some() {
+                            ui.label("Enabled");
+                        } else {
+                            ui.colored_label(
+                                egui::Color32::from_rgb(255, 140, 0),
+                                "DISABLED — set PASSPHRASE if exposing to the internet",
+                            );
+                        }
+                        ui.end_row();
                     } else {
                         let config = crate::config::HostConfig::load();
-                        let host_url_display = format!("http://{}:{}/", config.host, config.port);
+                        let host_url_display = format!("http://{}/", config.listen);
 
                         ui.strong("Host URL:");
                         ui.label(host_url_display);
+                        ui.end_row();
+
+                        ui.strong("Auth:");
+                        if config.passphrase.is_some() {
+                            ui.label("Enabled");
+                        } else {
+                            ui.colored_label(
+                                egui::Color32::from_rgb(255, 140, 0),
+                                "DISABLED — set PASSPHRASE if exposing to the internet",
+                            );
+                        }
                         ui.end_row();
                     }
                 });
