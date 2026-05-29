@@ -2,8 +2,15 @@
 
 [English](README.md) | [简体中文](README.zh_CN.md) | [日本語 (原文)](README.ja_JP.md) | 日本語 (非技術者向け)
 
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+
 > 💡 **プロジェクトの開発について**
-> このプロジェクトの大部分は、AIモデル **Gemini**（各種バージョン）によって開発されました。詳細は[プロジェクトの開発について](#プロジェクトの開発について)をご覧ください。
+> このプロジェクトの構想以外の全ては、AIモデル **Gemini 3.5 Flash** と **Claude Sonnet 4.6** によって開発されました。[詳細はプロジェクトの開発についてをご覧ください。](#プロジェクトの開発について)
+
+> ⚠️ **現在の動作保証について**
+> - **Linux版は現時点では未テストです。**
+> - Windows版・macOS版では、URLの転送機能（ホストのブラウザでURLを開く）のみ動作確認済みです。リバースプロキシ機能（OAuthコールバック転送）は未検証です。
+> - GitHub ActionsのCI/CDビルド時間の制限を回避するため、完成前にリポジトリをPublicに切り替えました。
 
 このツールは、**「手元のPCや仮想環境（クライアント）」で開いたWebサイトを、「別のPC（ホスト）」のブラウザで表示させ、必要なポートを自動でつないでくれるシステム**です。
 
@@ -85,28 +92,26 @@
 ### ホスト設定（メインPC側: `host/inactive.env`）
 
 ```env
-HOST=0.0.0.0
-PORT=8080
+LISTEN=0.0.0.0:4000
 PASSPHRASE=二人だけの合言葉
 ```
 
-- `HOST`: 待ち受けアドレス（どこからでも受け付けるなら `0.0.0.0`）
-- `PORT`: メインPCが接続を待つポート番号（デフォルト: `8080`）
-- `PASSPHRASE`: クライアントPCと一致させる合言葉
+- `LISTEN`: 待ち受けアドレスとポート番号（`アドレス:ポート` の形式。どこからでも受け付けるなら `0.0.0.0:4000`）
+- `PASSPHRASE`: クライアントPCと一致させる合言葉。空欄にすると合言葉なしで動作。
 
 ### クライアント設定（サブPCや仮想環境側: `client/inactive.env`）
 
 ```env
-HOST_URL=http://<ホストのIPアドレス>:8080
-CLIENT_HOST=0.0.0.0
-CLIENT_PORT=3000
+LISTEN=0.0.0.0:3000
+HOST_URL=http://<ホストのIPアドレス>:4000
+RELAY_URL=http://<クライアントのIPアドレス>:3000
 PASSPHRASE=二人だけの合言葉
 ```
 
-- `HOST_URL`: メインPCの住所（例: `http://<ホストのIPアドレス>:8080`）
-- `CLIENT_HOST`: クライアントデーモンのバインドIP
-- `CLIENT_PORT`: クライアントデーモンのリスニングポート（デフォルト: `3000`）
-- `PASSPHRASE`: メインPC側と一致する合言葉
+- `LISTEN`: クライアントデーモンの待ち受けアドレスとポート番号（`アドレス:ポート` の形式）
+- `HOST_URL`: メインPCの住所（例: `http://<ホストのIPアドレス>:4000`）
+- `RELAY_URL`: メインPC（ホスト）がサブPC（クライアント）に折り返す際のURL。メインPC側から到達できるアドレスを指定（LAN IPやTailscale IP等。`0.0.0.0` は接続先として指定できないので注意）。
+- `PASSPHRASE`: メインPC側と一致する合言葉。空欄にすると合言葉なしで動作。
 
 ---
 
@@ -142,7 +147,8 @@ Open Remote URL - Host Status
 [Status]
 - Installed:  Yes (インストールされています)
 - Running:    Yes (稼働中です)
-- HOST:       http://0.0.0.0:8080
+- Listen:     http://0.0.0.0:4000/
+- Auth:       Enabled
 - Executable: /Users/<ユーザー名>/Applications/OpenRemoteURLHost.app/Contents/MacOS/open-remote-url-host
 - Config:     /Users/<ユーザー名>/Applications/OpenRemoteURLHost.app/.env
 
@@ -163,8 +169,10 @@ Open Remote URL - Client Status
 [Status]
 - Installed:  Yes (インストールされています)
 - Running:    Yes (稼働中です)
-- HOST:       http://localhost:8080/
-- CLIENT:     http://0.0.0.0:3000
+- Listen:     http://0.0.0.0:3000/
+- RELAY:      http://192.168.1.20:3000/
+- HOST:       http://192.168.1.10:4000/
+- Auth:       Enabled
 - Executable: /Users/<ユーザー名>/Applications/OpenRemoteURLClient.app/Contents/MacOS/open-remote-url-client
 - Config:     /Users/<ユーザー名>/Applications/OpenRemoteURLClient.app/.env
 
@@ -191,14 +199,14 @@ Open Remote URL - Client Status
 
 ## プロジェクトの開発について
 
-このプロジェクトの大部分（ソースコードの実装、リファクタリング、ドキュメント作成）は、高度な設計・コーディング・構成能力を備えたAIモデル **Gemini 3.5 Flash** を使用して開発および整理されました。
+このプロジェクトの構想以外の全ては、高度な設計・コーディング・構成能力を備えたAIモデル **Gemini 3.5 Flash** と **Claude Sonnet 4.6** によって開発および整理されました。
 
 また、システム構成図（フローチャート）の画像は、iPadのフリーボードで描いた手書きスケッチをベースに、**Gemini 3.1 Flash（マルチモーダル機能）** に読み込ませて文字を綺麗に清書し、枠の配置や全体のレイアウトを調整しながら作成されました（プロンプトの調整には試行錯誤が重ねられています）。
 
-これらのAIモデルは、Googleが提供するAntigravityおよびAntigravity IDE上で無料で使用できます。
-また、本プロジェクトはGoogle One AI Proプラン（月額約3,000円）を利用して完成しました。
+これらのAIモデルは、Googleが提供するAntigravityおよびAntigravity IDE上で使用できます。
+また、本プロジェクトはGoogle One AI Proプラン（月額約3,000円）とClaude Proプラン（月額約3,500円）を利用して完成しました。
 
 - **開発開始（最初のプロンプト送信）**: 2026/05/26 15:35 JST
-- **最終更新**: 2026/05/29 JST
+- **最終更新**: 2026/05/30 JST
 
 なお、アニメの鑑賞と並行しながらのプロンプト入力・コード検証であったこと、そしてGeminiの応答が極めて高速であったことから、開発に専念していれば、本来はさらに短い時間で完成させることも可能でした。

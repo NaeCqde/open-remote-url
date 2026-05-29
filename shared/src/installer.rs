@@ -81,10 +81,10 @@ fn copy_env_file(app_type: &str) -> Result<(), Box<dyn std::error::Error>> {
         if app_type == "client" {
             fs::write(
                 &target_env,
-                "HOST_URL=http://localhost:8080\nRELAY_URL=\nCLIENT_HOST=0.0.0.0\nCLIENT_PORT=3000\n",
+                "LISTEN=0.0.0.0:3000\nHOST_URL=http://localhost:4000\nRELAY_URL=http://localhost:3000\nPASSPHRASE=\n",
             )?;
         } else {
-            fs::write(&target_env, "HOST=0.0.0.0\nPORT=8080\n")?;
+            fs::write(&target_env, "LISTEN=0.0.0.0:4000\nPASSPHRASE=\n")?;
         }
     }
     Ok(())

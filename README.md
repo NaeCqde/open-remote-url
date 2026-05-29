@@ -2,11 +2,18 @@
 
 English | [简体中文](README.zh_CN.md) | [日本語 (Original)](README.ja_JP.md) | [日本語 (Non-technical)](README.ja_EZ.md)
 
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+
 > ⚠️ **Note on Translations**
 > Since this document was AI-translated from Japanese, some parts may be inaccurate or difficult to understand. If you find any parts unclear, please translate the [Japanese (Original) version](README.ja_JP.md) and refer to it instead.
 
 > 💡 **About Project Development**
-> Most of this project was developed by the AI model **Gemini 3.5 Flash**. For details, see [About Project Development](#about-project-development).
+> Everything in this project except the concept was developed by the AI models **Gemini 3.5 Flash** and **Claude Sonnet 4.6**. For details, see [About Project Development](#about-project-development).
+
+> ⚠️ **Current Operational Status**
+> - **The Linux version has not been tested at this time.**
+> - The Windows and macOS versions have been verified for URL forwarding only (opening a URL in the Host's browser). The reverse proxy functionality (OAuth callback forwarding) has not been verified.
+> - The repository was made public before completion in order to avoid GitHub Actions CI/CD build time limits.
 
 A system that forwards web page display and OAuth login authentication to a browser on another device (Host) for centralized management.
 
@@ -85,28 +92,30 @@ Running the installer script automatically copies the `inactive.env` from the in
 ### Host Config (`host/inactive.env`)
 
 ```env
-HOST=0.0.0.0
-PORT=8080
+LISTEN=0.0.0.0:4000
 PASSPHRASE=some-shared-secret
 ```
 
-- `HOST`: Bind IP address (default: `0.0.0.0`)
-- `PORT`: Listening port (default: `8080`)
-- `PASSPHRASE`: Shared passphrase
+| Variable | Description | Default |
+|---|---|---|
+| `LISTEN` | Bind address and port (`<host>:<port>`). | `0.0.0.0:4000` |
+| `PASSPHRASE` | Shared passphrase. Leave empty to disable authentication. | _(empty)_ |
 
 ### Client Config (`client/inactive.env`)
 
 ```env
-HOST_URL=http://<host_ip>:8080
-CLIENT_HOST=0.0.0.0
-CLIENT_PORT=3000
+LISTEN=0.0.0.0:3000
+HOST_URL=http://<host_ip>:4000
+RELAY_URL=http://<client_ip>:3000
 PASSPHRASE=some-shared-secret
 ```
 
-- `HOST_URL`: URL of the remote Host daemon (e.g. `http://<host_ip>:8080`)
-- `CLIENT_HOST`: Bind IP for the Client daemon (default: `0.0.0.0`)
-- `CLIENT_PORT`: Listening port for the Client daemon (default: `3000`)
-- `PASSPHRASE`: Key matching the Host's passphrase
+| Variable | Description | Default |
+|---|---|---|
+| `LISTEN` | Bind address and port for the Client daemon (`<host>:<port>`). | `0.0.0.0:3000` |
+| `HOST_URL` | URL of the remote Host daemon. Supports `http://` and `https://` (TLS via rustls, no OpenSSL required). | `http://localhost:4000` |
+| `RELAY_URL` | URL that the Host uses to call back into this Client for reverse proxying. Must be reachable from the Host machine — use the Client's LAN/Tailscale IP, not `0.0.0.0`. | `http://localhost:3000` |
+| `PASSPHRASE` | Key matching the Host's passphrase. Leave empty to disable authentication. | _(empty)_ |
 
 ---
 
@@ -154,7 +163,8 @@ Open Remote URL - Host Status
 [Status]
 - Installed:  Yes
 - Running:    Yes
-- HOST:       http://0.0.0.0:8080
+- Listen:     http://0.0.0.0:4000/
+- Auth:       Enabled
 - Executable: /Users/<username>/Applications/OpenRemoteURLHost.app/Contents/MacOS/open-remote-url-host
 - Config:     /Users/<username>/Applications/OpenRemoteURLHost.app/.env
 
@@ -175,8 +185,10 @@ Open Remote URL - Client Status
 [Status]
 - Installed:  Yes
 - Running:    Yes
-- HOST:       http://localhost:8080/
-- CLIENT:     http://0.0.0.0:3000
+- Listen:     http://0.0.0.0:3000/
+- RELAY:      http://192.168.1.20:3000/
+- HOST:       http://192.168.1.10:4000/
+- Auth:       Enabled
 - Executable: /Users/<username>/Applications/OpenRemoteURLClient.app/Contents/MacOS/open-remote-url-client
 - Config:     /Users/<username>/Applications/OpenRemoteURLClient.app/.env
 
@@ -204,14 +216,14 @@ To completely remove autostart registrations, browser associations, plist files,
 
 ## About Project Development
 
-Most of this project (source code implementation, refactoring, and documentation) was developed and organized by the advanced AI model **Gemini 3.5 Flash**, which has high-level design, coding, and structuring capabilities.
+Everything in this project except the concept (source code implementation, refactoring, and documentation) was developed and organized by the AI models **Gemini 3.5 Flash** and **Claude Sonnet 4.6**, which have high-level design, coding, and structuring capabilities.
 
 Additionally, the system architecture diagram (flowchart) was created by feeding a handwritten sketch drawn on iPad Freeform into **Gemini 3.1 Flash (Multimodal Feature)**, which neatly transcribed the text and adjusted the box placement and overall layout (with considerable trial and error in prompt tuning).
 
-These AI models are available for free on Antigravity and Antigravity IDE provided by Google.
-This project was completed using the Google One AI Pro plan (approx. $20 / month).
+These AI models are available on Antigravity and Antigravity IDE provided by Google.
+This project was completed using the Google One AI Pro plan (approx. $20 / month) and the Claude Pro plan (approx. $25 / month).
 
 - **Development Started (First Prompt)**: 2026/05/26 15:35 JST
-- **Last Updated**: 2026/05/29 JST
+- **Last Updated**: 2026/05/30 JST
 
 Note: Since the prompt input and code verification were done in parallel while watching anime, and Gemini's response was extremely fast, it could have been completed in an even shorter time if focused solely on development.

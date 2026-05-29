@@ -10,11 +10,11 @@ fn print_status() {
     let (is_installed, is_running, exe_path, config_path) =
         shared::installer::check_status("client");
     let config = shared::config::ClientConfig::load();
-    let host_url = config.host_url.unwrap_or_else(|| "".to_string());
-    let host_url_display = if host_url.is_empty() {
-        "(please set)".to_string()
+
+    let auth_status = if config.passphrase.is_some() {
+        "Enabled".to_string()
     } else {
-        format!("{}/", host_url.trim_end_matches('/'))
+        "DISABLED  *** Set PASSPHRASE if exposing to the internet ***".to_string()
     };
 
     let mut status_msg = format!(
@@ -22,13 +22,16 @@ fn print_status() {
         [Status]\n\
         - Installed:  {}\n\
         - Running:    {}\n\
-        - HOST:       {}\n\
-        - CLIENT:     http://{}:{}/",
+        - Listen:     http://{}/\n\
+        - RELAY:      {}/\n\
+        - HOST:       {}/\n\
+        - Auth:       {}",
         if is_installed { "Yes" } else { "No" },
         if is_running { "Yes" } else { "No" },
-        host_url_display,
-        config.client_host,
-        config.client_port,
+        config.listen,
+        config.relay_url.trim_end_matches('/'),
+        config.host_url.trim_end_matches('/'),
+        auth_status,
     );
 
     if is_installed {

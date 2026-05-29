@@ -11,16 +11,23 @@ fn print_status() {
         shared::installer::check_status("host");
     let config = shared::config::HostConfig::load();
 
+    let auth_status = if config.passphrase.is_some() {
+        "Enabled".to_string()
+    } else {
+        "DISABLED  *** Set PASSPHRASE if exposing to the internet ***".to_string()
+    };
+
     let mut status_msg = format!(
         "Open Remote URL - Host Status\n\n\
         [Status]\n\
         - Installed:  {}\n\
         - Running:    {}\n\
-        - HOST:       http://{}:{}/",
+        - Listen:     http://{}/\n\
+        - Auth:       {}",
         if is_installed { "Yes" } else { "No" },
         if is_running { "Yes" } else { "No" },
-        config.host,
-        config.port,
+        config.listen,
+        auth_status,
     );
 
     if is_installed {

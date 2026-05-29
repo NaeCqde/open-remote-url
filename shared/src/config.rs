@@ -176,57 +176,50 @@ pub fn wait_for_daemon_start(port: u16, timeout: std::time::Duration) {
     }
 }
 
+fn parse_listen(listen: &str) -> (String, u16) {
+    match listen.rsplit_once(':') {
+        Some((host, port_str)) => (host.to_string(), port_str.parse::<u16>().unwrap_or(8080)),
+        None => (listen.to_string(), 8080),
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct HostConfig {
-    pub host: String,
+    pub listen: String,
+    pub bind_host: String,
     pub port: u16,
     pub passphrase: Option<String>,
 }
 
 impl HostConfig {
     pub fn load() -> Self {
-        let host = env::var("HOST").unwrap_or_else(|_| "0.0.0.0".to_string());
-        let port = env::var("PORT")
-            .unwrap_or_else(|_| "8080".to_string())
-            .parse::<u16>()
-            .unwrap_or(8080);
-        let passphrase = env::var("PASSPHRASE").ok();
-        Self {
-            host,
-            port,
-            passphrase,
-        }
+        let listen = env::var("LISTEN").unwrap_or_else(|_| "0.0.0.0:4000".to_string());
+        let (bind_host, port) = parse_listen(&listen);
+        let passphrase = env::var("PASSPHRASE").ok().filter(|s| !s.is_empty());
+        Self { listen, bind_host, port, passphrase }
     }
 }
 
 #[derive(Debug, Clone)]
 pub struct ClientConfig {
-    pub host_url: Option<String>,
-    pub relay_url: Option<String>,
+    pub listen: String,
     pub client_host: String,
     pub client_port: u16,
+    pub host_url: String,
+    pub relay_url: String,
     pub passphrase: Option<String>,
 }
 
 impl ClientConfig {
     pub fn load() -> Self {
-        let strip_trailing_slash = |u: String| u.trim_end_matches('/').to_string();
-        let host_url = env::var("HOST_URL").ok().map(&strip_trailing_slash);
-        let relay_url = env::var("RELAY_URL").ok()
-            .filter(|u| !u.is_empty())
-            .map(strip_trailing_slash);
-        let client_host = env::var("CLIENT_HOST").unwrap_or_else(|_| "0.0.0.0".to_string());
-        let client_port = env::var("CLIENT_PORT")
-            .unwrap_or_else(|_| "3000".to_string())
-            .parse::<u16>()
-            .unwrap_or(3000);
-        let passphrase = env::var("PASSPHRASE").ok();
-        Self {
-            host_url,
-            relay_url,
-            client_host,
-            client_port,
-            passphrase,
-        }
+        let strip_slash = |u: String| u.trim_end_matches('/').to_string();
+        let listen = env::var("LISTEN").unwrap_or_else(|_| "0.0.0.0:3000".to_string());
+        let (client_host, client_port) = parse_listen(&listen);
+        let host_url = env::var("HOST_URL").map(strip_slash)
+            .unwrap_or_else(|_| "http://localhost:4000".to_string());
+        let relay_url = env::var("RELAY_URL").map(strip_slash)
+            .unwrap_or_else(|_| "http://localhost:3000".to_string());
+        let passphrase = env::var("PASSPHRASE").ok().filter(|s| !s.is_empty());
+        Self { listen, client_host, client_port, host_url, relay_url, passphrase }
     }
 }
