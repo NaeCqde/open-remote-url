@@ -74,27 +74,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
     let args: Vec<String> = env::args().collect();
 
-    #[cfg(target_os = "windows")]
-    {
-        if args.len() < 2 {
-            shared::gui::run_gui("client");
-            exit(0);
-        } else {
-            shared::utils::attach_console();
-        }
-    }
-    #[cfg(any(target_os = "macos", target_os = "linux"))]
-    {
-        if args.len() < 2 && shared::utils::is_double_clicked() {
-            shared::gui::run_gui("client");
-            exit(0);
-        }
-    }
-
-    if args.len() >= 2 && args[1] == "--config" {
-        let _ = shared::config::show_config("client");
-        exit(0);
-    }
+    shared::cli::setup_gui_or_console("client", &args);
 
     if args.len() < 2 {
         print_status();
@@ -103,54 +83,13 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
     let cmd_or_url = &args[1];
 
-    if cmd_or_url == "--install" {
-        log::info!("Installing open-remote-url-client...");
-        match shared::installer::install("client") {
-            Ok(_) => {
-                println!("Client installation completed successfully!");
-                let _ = shared::config::show_config("client");
-            }
-            Err(e) => {
-                println!("Installation failed: {}", e);
-                exit(1);
-            }
-        }
-    } else if cmd_or_url == "--uninstall" {
-        log::info!("Uninstalling open-remote-url-client...");
-        match shared::installer::uninstall("client") {
-            Ok(_) => {
-                println!("Client uninstallation completed successfully!");
-            }
-            Err(e) => {
-                println!("Uninstallation failed: {}", e);
-                exit(1);
-            }
-        }
-    } else if cmd_or_url == "--daemon" {
+    if shared::cli::handle_common_command(cmd_or_url, "client") {
+        return Ok(());
+    }
+
+    if cmd_or_url == "--daemon" {
         log::info!("Starting open-remote-url-client daemon...");
         daemon::run().await?;
-    } else if cmd_or_url == "--start" {
-        log::info!("Starting open-remote-url-client daemon...");
-        match shared::installer::start_daemon("client") {
-            Ok(_) => {
-                println!("Client daemon started successfully!");
-            }
-            Err(e) => {
-                println!("Failed to start client daemon: {}", e);
-                exit(1);
-            }
-        }
-    } else if cmd_or_url == "--stop" {
-        log::info!("Stopping open-remote-url-client daemon...");
-        match shared::installer::stop_daemon("client") {
-            Ok(_) => {
-                println!("Client daemon stopped successfully!");
-            }
-            Err(e) => {
-                println!("Failed to stop client daemon: {}", e);
-                exit(1);
-            }
-        }
     } else if looks_like_url(cmd_or_url) {
         let config = shared::config::ClientConfig::load();
         let client_port = config.client_port;
@@ -184,7 +123,6 @@ async fn main() -> Result<(), Box<dyn Error>> {
             }
         }
     } else {
-        // Unknown argument or not a URL: show help/status
         print_status();
         exit(0);
     }

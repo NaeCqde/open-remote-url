@@ -123,16 +123,11 @@ pub fn open_dir_in_file_manager(path: &Path) -> Result<(), Box<dyn std::error::E
     }
     #[cfg(target_os = "macos")]
     {
-        let path_str = path.to_string_lossy();
-        if path_str.contains(".app") {
-            let reveal_path = if path.extension().map_or(false, |ext| ext == "app") {
-                path.join("Contents")
-            } else {
-                path.to_path_buf()
-            };
-            std::process::Command::new("open")
-                .arg(&reveal_path)
-                .spawn()?;
+        if path.extension().map_or(false, |ext| ext == "app") {
+            // open -R on a file inside the bundle triggers Finder's package contents view
+            let env_path = path.join(".env");
+            let reveal = if env_path.exists() { env_path } else { path.to_path_buf() };
+            std::process::Command::new("open").arg("-R").arg(&reveal).spawn()?;
         } else {
             std::process::Command::new("open").arg(path).spawn()?;
         }

@@ -62,85 +62,23 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
     let args: Vec<String> = env::args().collect();
 
-    #[cfg(target_os = "windows")]
-    {
-        if args.len() < 2 {
-            shared::gui::run_gui("host");
-            exit(0);
-        } else {
-            shared::utils::attach_console();
-        }
-    }
-    #[cfg(any(target_os = "macos", target_os = "linux"))]
-    {
-        if args.len() < 2 && shared::utils::is_double_clicked() {
-            shared::gui::run_gui("host");
-            exit(0);
-        }
-    }
-
-    if args.len() >= 2 && args[1] == "--config" {
-        let _ = shared::config::show_config("host");
-        exit(0);
-    }
+    shared::cli::setup_gui_or_console("host", &args);
 
     if args.len() < 2 {
         print_status();
         exit(0);
     }
 
-    let cmd_or_url = &args[1];
+    let cmd = &args[1];
 
-    if cmd_or_url == "--install" {
-        log::info!("Installing open-remote-url-host...");
-        match shared::installer::install("host") {
-            Ok(_) => {
-                println!("Host installation completed successfully!");
-                let _ = shared::config::show_config("host");
-            }
-            Err(e) => {
-                println!("Installation failed: {}", e);
-                exit(1);
-            }
-        }
-    } else if cmd_or_url == "--uninstall" {
-        log::info!("Uninstalling open-remote-url-host...");
-        match shared::installer::uninstall("host") {
-            Ok(_) => {
-                println!("Host uninstallation completed successfully!");
-            }
-            Err(e) => {
-                println!("Uninstallation failed: {}", e);
-                exit(1);
-            }
-        }
-    } else if cmd_or_url == "--daemon" {
+    if shared::cli::handle_common_command(cmd, "host") {
+        return Ok(());
+    }
+
+    if cmd == "--daemon" {
         log::info!("Starting open-remote-url-host daemon...");
         daemon::run().await?;
-    } else if cmd_or_url == "--start" {
-        log::info!("Starting open-remote-url-host daemon...");
-        match shared::installer::start_daemon("host") {
-            Ok(_) => {
-                println!("Host daemon started successfully!");
-            }
-            Err(e) => {
-                println!("Failed to start host daemon: {}", e);
-                exit(1);
-            }
-        }
-    } else if cmd_or_url == "--stop" {
-        log::info!("Stopping open-remote-url-host daemon...");
-        match shared::installer::stop_daemon("host") {
-            Ok(_) => {
-                println!("Host daemon stopped successfully!");
-            }
-            Err(e) => {
-                println!("Failed to stop host daemon: {}", e);
-                exit(1);
-            }
-        }
     } else {
-        // Unknown argument: show help/status
         print_status();
         exit(0);
     }

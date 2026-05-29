@@ -1,10 +1,10 @@
+pub mod cli;
 pub mod config;
-pub mod installer;
-pub mod uninstaller;
-pub mod installer_utils;
-pub mod utils;
-
 pub mod gui;
+pub mod installer;
+pub mod installer_utils;
+pub mod uninstaller;
+pub mod utils;
 
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
