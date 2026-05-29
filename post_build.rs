@@ -123,7 +123,7 @@ fn main() {
                 println!("cargo:warning={} macOS app bundle created successfully.", app_name);
 
                 // Create a flat, uncompressed zip containing the .app at the root
-                let zip_name = format!("{}.zip", app_name);
+                let zip_name = format!("{}.app.zip", app_name);
                 let zip_path = out_dir.join(&zip_name);
                 if zip_path.exists() {
                     fs::remove_file(&zip_path).ok();

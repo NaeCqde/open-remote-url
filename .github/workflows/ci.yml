@@ -96,16 +96,16 @@ jobs:
               run: |
                 if [[ "${{ matrix.platform.target }}" == *"-apple-darwin" ]]; then
                   echo "EXTRA_FILES<<EOF" >> $GITHUB_ENV
-                  echo "OpenRemoteURLClient.app" >> $GITHUB_ENV
+                  echo "OpenRemoteURLClient.app.zip" >> $GITHUB_ENV
                   echo "inactive.env" >> $GITHUB_ENV
                   echo "README.md" >> $GITHUB_ENV
                   echo "README.ja_JP.md" >> $GITHUB_ENV
                   echo "README.ja_EZ.md" >> $GITHUB_ENV
                   echo "README.zh_CN.md" >> $GITHUB_ENV
                   echo "EOF" >> $GITHUB_ENV
-                  
+
                   echo "HOST_EXTRA_FILES<<EOF" >> $GITHUB_ENV
-                  echo "OpenRemoteURLHost.app" >> $GITHUB_ENV
+                  echo "OpenRemoteURLHost.app.zip" >> $GITHUB_ENV
                   echo "inactive.env" >> $GITHUB_ENV
                   echo "README.md" >> $GITHUB_ENV
                   echo "README.ja_JP.md" >> $GITHUB_ENV
@@ -155,7 +155,7 @@ jobs:
             - name: Stage Client Release Files (macOS only)
               if: contains(matrix.platform.target, 'apple-darwin')
               run: |
-                cp -R target/${{ matrix.platform.target }}/release/OpenRemoteURLClient.app ./
+                cp target/${{ matrix.platform.target }}/release/OpenRemoteURLClient.app.zip ./
                 cp client/inactive.env ./inactive.env
 
             - name: Wait
@@ -202,9 +202,9 @@ jobs:
             - name: Stage Host Release Files (macOS only)
               if: "!cancelled() && contains(matrix.platform.target, 'apple-darwin')"
               run: |
-                rm -rf OpenRemoteURLClient.app
+                rm -f OpenRemoteURLClient.app.zip
                 rm -f inactive.env
-                cp -R target/${{ matrix.platform.target }}/release/OpenRemoteURLHost.app ./
+                cp target/${{ matrix.platform.target }}/release/OpenRemoteURLHost.app.zip ./
                 cp host/inactive.env ./inactive.env
 
             - name: Wait
