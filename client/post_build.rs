@@ -1,1 +1,1 @@
-include!("../post_build.rs");
+include!("../shared/post_build.rs");
