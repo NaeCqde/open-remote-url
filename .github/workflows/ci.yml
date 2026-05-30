@@ -58,11 +58,6 @@ jobs:
                   override: true
                   profile: minimal
             - uses: Swatinem/rust-cache@v2
-              with:
-                  workspaces: |-
-                      client
-                      host
-
             - name: Install cargo-post (macOS only)
               if: contains(matrix.platform.target, 'apple-darwin')
               run: cargo install cargo-post
@@ -70,8 +65,8 @@ jobs:
             - name: Build Client & Host with Cargo post-build (macOS only)
               if: contains(matrix.platform.target, 'apple-darwin')
               run: |
-                cargo post build --package open_remote_url_client --locked --release --target ${{ matrix.platform.target }}
-                cargo post build --package open_remote_url_host --locked --release --target ${{ matrix.platform.target }}
+                  cargo post build --package open_remote_url_client --locked --release --target ${{ matrix.platform.target }}
+                  cargo post build --package open_remote_url_host --locked --release --target ${{ matrix.platform.target }}
 
             - name: Build Client & Host with Cargo or Cross (non-macOS)
               if: "!contains(matrix.platform.target, 'apple-darwin') && matrix.platform.target != 'riscv64gc-unknown-linux-musl'"
@@ -94,69 +89,69 @@ jobs:
             - name: Determine Extra Files
               shell: bash
               run: |
-                if [[ "${{ matrix.platform.target }}" == *"-apple-darwin" ]]; then
-                  echo "EXTRA_FILES<<EOF" >> $GITHUB_ENV
-                  echo "OpenRemoteURLClient.app.zip" >> $GITHUB_ENV
-                  echo "inactive.env" >> $GITHUB_ENV
-                  echo "README.md" >> $GITHUB_ENV
-                  echo "README.ja_JP.md" >> $GITHUB_ENV
-                  echo "README.ja_EZ.md" >> $GITHUB_ENV
-                  echo "README.zh_CN.md" >> $GITHUB_ENV
-                  echo "EOF" >> $GITHUB_ENV
+                  if [[ "${{ matrix.platform.target }}" == *"-apple-darwin" ]]; then
+                    echo "EXTRA_FILES<<EOF" >> $GITHUB_ENV
+                    echo "OpenRemoteURLClient.app.zip" >> $GITHUB_ENV
+                    echo "inactive.env" >> $GITHUB_ENV
+                    echo "README.md" >> $GITHUB_ENV
+                    echo "README.ja_JP.md" >> $GITHUB_ENV
+                    echo "README.ja_EZ.md" >> $GITHUB_ENV
+                    echo "README.zh_CN.md" >> $GITHUB_ENV
+                    echo "EOF" >> $GITHUB_ENV
 
-                  echo "HOST_EXTRA_FILES<<EOF" >> $GITHUB_ENV
-                  echo "OpenRemoteURLHost.app.zip" >> $GITHUB_ENV
-                  echo "inactive.env" >> $GITHUB_ENV
-                  echo "README.md" >> $GITHUB_ENV
-                  echo "README.ja_JP.md" >> $GITHUB_ENV
-                  echo "README.ja_EZ.md" >> $GITHUB_ENV
-                  echo "README.zh_CN.md" >> $GITHUB_ENV
-                  echo "EOF" >> $GITHUB_ENV
-                elif [[ "${{ matrix.platform.target }}" == *"-pc-windows-"* ]]; then
-                  echo "EXTRA_FILES<<EOF" >> $GITHUB_ENV
-                  echo "client/inactive.env" >> $GITHUB_ENV
-                  echo "README.md" >> $GITHUB_ENV
-                  echo "README.ja_JP.md" >> $GITHUB_ENV
-                  echo "README.ja_EZ.md" >> $GITHUB_ENV
-                  echo "README.zh_CN.md" >> $GITHUB_ENV
-                  echo "EOF" >> $GITHUB_ENV
-                  
-                  echo "HOST_EXTRA_FILES<<EOF" >> $GITHUB_ENV
-                  echo "host/inactive.env" >> $GITHUB_ENV
-                  echo "README.md" >> $GITHUB_ENV
-                  echo "README.ja_JP.md" >> $GITHUB_ENV
-                  echo "README.ja_EZ.md" >> $GITHUB_ENV
-                  echo "README.zh_CN.md" >> $GITHUB_ENV
-                  echo "EOF" >> $GITHUB_ENV
-                else
-                  echo "EXTRA_FILES<<EOF" >> $GITHUB_ENV
-                  echo "scripts/install/install.sh" >> $GITHUB_ENV
-                  echo "scripts/uninstall/uninstall.sh" >> $GITHUB_ENV
-                  echo "scripts/config/config.sh" >> $GITHUB_ENV
-                  echo "client/inactive.env" >> $GITHUB_ENV
-                  echo "README.md" >> $GITHUB_ENV
-                  echo "README.ja_JP.md" >> $GITHUB_ENV
-                  echo "README.ja_EZ.md" >> $GITHUB_ENV
-                  echo "README.zh_CN.md" >> $GITHUB_ENV
-                  echo "EOF" >> $GITHUB_ENV
-                  
-                  echo "HOST_EXTRA_FILES<<EOF" >> $GITHUB_ENV
-                  echo "scripts/install/install.sh" >> $GITHUB_ENV
-                  echo "scripts/uninstall/uninstall.sh" >> $GITHUB_ENV
-                  echo "scripts/config/config.sh" >> $GITHUB_ENV
-                  echo "host/inactive.env" >> $GITHUB_ENV
-                  echo "README.md" >> $GITHUB_ENV
-                  echo "README.ja_JP.md" >> $GITHUB_ENV
-                  echo "README.ja_EZ.md" >> $GITHUB_ENV
-                  echo "README.zh_CN.md" >> $GITHUB_ENV
-                  echo "EOF" >> $GITHUB_ENV
-                fi
+                    echo "HOST_EXTRA_FILES<<EOF" >> $GITHUB_ENV
+                    echo "OpenRemoteURLHost.app.zip" >> $GITHUB_ENV
+                    echo "inactive.env" >> $GITHUB_ENV
+                    echo "README.md" >> $GITHUB_ENV
+                    echo "README.ja_JP.md" >> $GITHUB_ENV
+                    echo "README.ja_EZ.md" >> $GITHUB_ENV
+                    echo "README.zh_CN.md" >> $GITHUB_ENV
+                    echo "EOF" >> $GITHUB_ENV
+                  elif [[ "${{ matrix.platform.target }}" == *"-pc-windows-"* ]]; then
+                    echo "EXTRA_FILES<<EOF" >> $GITHUB_ENV
+                    echo "client/inactive.env" >> $GITHUB_ENV
+                    echo "README.md" >> $GITHUB_ENV
+                    echo "README.ja_JP.md" >> $GITHUB_ENV
+                    echo "README.ja_EZ.md" >> $GITHUB_ENV
+                    echo "README.zh_CN.md" >> $GITHUB_ENV
+                    echo "EOF" >> $GITHUB_ENV
+                    
+                    echo "HOST_EXTRA_FILES<<EOF" >> $GITHUB_ENV
+                    echo "host/inactive.env" >> $GITHUB_ENV
+                    echo "README.md" >> $GITHUB_ENV
+                    echo "README.ja_JP.md" >> $GITHUB_ENV
+                    echo "README.ja_EZ.md" >> $GITHUB_ENV
+                    echo "README.zh_CN.md" >> $GITHUB_ENV
+                    echo "EOF" >> $GITHUB_ENV
+                  else
+                    echo "EXTRA_FILES<<EOF" >> $GITHUB_ENV
+                    echo "scripts/install/install.sh" >> $GITHUB_ENV
+                    echo "scripts/uninstall/uninstall.sh" >> $GITHUB_ENV
+                    echo "scripts/config/config.sh" >> $GITHUB_ENV
+                    echo "client/inactive.env" >> $GITHUB_ENV
+                    echo "README.md" >> $GITHUB_ENV
+                    echo "README.ja_JP.md" >> $GITHUB_ENV
+                    echo "README.ja_EZ.md" >> $GITHUB_ENV
+                    echo "README.zh_CN.md" >> $GITHUB_ENV
+                    echo "EOF" >> $GITHUB_ENV
+                    
+                    echo "HOST_EXTRA_FILES<<EOF" >> $GITHUB_ENV
+                    echo "scripts/install/install.sh" >> $GITHUB_ENV
+                    echo "scripts/uninstall/uninstall.sh" >> $GITHUB_ENV
+                    echo "scripts/config/config.sh" >> $GITHUB_ENV
+                    echo "host/inactive.env" >> $GITHUB_ENV
+                    echo "README.md" >> $GITHUB_ENV
+                    echo "README.ja_JP.md" >> $GITHUB_ENV
+                    echo "README.ja_EZ.md" >> $GITHUB_ENV
+                    echo "README.zh_CN.md" >> $GITHUB_ENV
+                    echo "EOF" >> $GITHUB_ENV
+                  fi
 
             - name: Stage Client Release Files (macOS only)
               if: contains(matrix.platform.target, 'apple-darwin')
               run: |
-                cp target/${{ matrix.platform.target }}/release/OpenRemoteURLClient.app.zip ./
-                cp client/inactive.env ./inactive.env
+                  cp target/${{ matrix.platform.target }}/release/OpenRemoteURLClient.app.zip ./
+                  cp client/inactive.env ./inactive.env
 
             - name: Wait
               shell: bash
@@ -202,10 +197,10 @@ jobs:
             - name: Stage Host Release Files (macOS only)
               if: "!cancelled() && contains(matrix.platform.target, 'apple-darwin')"
               run: |
-                rm -f OpenRemoteURLClient.app.zip
-                rm -f inactive.env
-                cp target/${{ matrix.platform.target }}/release/OpenRemoteURLHost.app.zip ./
-                cp host/inactive.env ./inactive.env
+                  rm -f OpenRemoteURLClient.app.zip
+                  rm -f inactive.env
+                  cp target/${{ matrix.platform.target }}/release/OpenRemoteURLHost.app.zip ./
+                  cp host/inactive.env ./inactive.env
 
             - name: Wait
               shell: bash
