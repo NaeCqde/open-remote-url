@@ -20,14 +20,16 @@ pub struct ProxyRequest {
     pub method: String,
     pub path_and_query: String,
     pub headers: HashMap<String, String>,
-    pub body: String, // Base64 encoded body
+    #[serde(default)]
+    pub body: String, // Base64 encoded body; absent or "" means no body
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct ProxyResponse {
     pub status: u16,
     pub headers: HashMap<String, String>,
-    pub body: String, // Base64 encoded body
+    #[serde(default)]
+    pub body: String, // Base64 encoded body; absent or "" means no body
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq)]
