@@ -87,11 +87,11 @@ jobs:
                   args: --manifest-path Cargo.toml --locked --release --target ${{ matrix.platform.target }}
 
             - name: Determine Extra Files
-              if: "!contains(matrix.platform.target, 'apple-darwin')"
               shell: bash
               run: |
-                  if [[ "${{ matrix.platform.target }}" == *"-pc-windows-"* ]]; then
+                  if [[ "${{ matrix.platform.target }}" == *"-apple-darwin" ]]; then
                     echo "EXTRA_FILES<<EOF" >> $GITHUB_ENV
+                    echo "OpenRemoteURLClient.app.zip" >> $GITHUB_ENV
                     echo "client/inactive.env" >> $GITHUB_ENV
                     echo "README.md" >> $GITHUB_ENV
                     echo "README.ja_JP.md" >> $GITHUB_ENV
@@ -99,6 +99,23 @@ jobs:
                     echo "README.zh_CN.md" >> $GITHUB_ENV
                     echo "EOF" >> $GITHUB_ENV
 
+                    echo "HOST_EXTRA_FILES<<EOF" >> $GITHUB_ENV
+                    echo "OpenRemoteURLHost.app.zip" >> $GITHUB_ENV
+                    echo "host/inactive.env" >> $GITHUB_ENV
+                    echo "README.md" >> $GITHUB_ENV
+                    echo "README.ja_JP.md" >> $GITHUB_ENV
+                    echo "README.ja_EZ.md" >> $GITHUB_ENV
+                    echo "README.zh_CN.md" >> $GITHUB_ENV
+                    echo "EOF" >> $GITHUB_ENV
+                  elif [[ "${{ matrix.platform.target }}" == *"-pc-windows-"* ]]; then
+                    echo "EXTRA_FILES<<EOF" >> $GITHUB_ENV
+                    echo "client/inactive.env" >> $GITHUB_ENV
+                    echo "README.md" >> $GITHUB_ENV
+                    echo "README.ja_JP.md" >> $GITHUB_ENV
+                    echo "README.ja_EZ.md" >> $GITHUB_ENV
+                    echo "README.zh_CN.md" >> $GITHUB_ENV
+                    echo "EOF" >> $GITHUB_ENV
+                    
                     echo "HOST_EXTRA_FILES<<EOF" >> $GITHUB_ENV
                     echo "host/inactive.env" >> $GITHUB_ENV
                     echo "README.md" >> $GITHUB_ENV
@@ -117,7 +134,7 @@ jobs:
                     echo "README.ja_EZ.md" >> $GITHUB_ENV
                     echo "README.zh_CN.md" >> $GITHUB_ENV
                     echo "EOF" >> $GITHUB_ENV
-
+                    
                     echo "HOST_EXTRA_FILES<<EOF" >> $GITHUB_ENV
                     echo "scripts/install/install.sh" >> $GITHUB_ENV
                     echo "scripts/uninstall/uninstall.sh" >> $GITHUB_ENV
@@ -131,11 +148,9 @@ jobs:
                   fi
 
             - name: Wait
-              if: "!contains(matrix.platform.target, 'apple-darwin')"
               shell: bash
               run: sleep $((RANDOM % 20 + 3))
-            - name: Release Client 1 (non-macOS)
-              if: "!contains(matrix.platform.target, 'apple-darwin')"
+            - name: Release Client 1
               id: release-client-1
               uses: houseabsolute/actions-rust-release@v0
               env:
@@ -152,11 +167,11 @@ jobs:
                           "token": "${{ secrets.GITHUB_TOKEN }}"
                       }
             - name: Wait
-              if: "failure() && !contains(matrix.platform.target, 'apple-darwin')"
+              if: failure()
               shell: bash
               run: sleep $((RANDOM % 20 + 5))
-            - name: Release Client 2 (non-macOS)
-              if: "failure() && !contains(matrix.platform.target, 'apple-darwin')"
+            - name: Release Client 2
+              if: failure()
               id: release-client-2
               uses: houseabsolute/actions-rust-release@v0
               env:
@@ -173,25 +188,10 @@ jobs:
                           "token": "${{ secrets.GITHUB_TOKEN }}"
                       }
 
-            - name: Release Client (macOS only)
-              if: "!cancelled() && contains(matrix.platform.target, 'apple-darwin')"
-              shell: bash
-              run: |
-                  CLIENT_VERSION=$(cargo metadata --no-deps --manifest-path client/Cargo.toml --format-version 1 | jq -r '.packages[0].version')
-                  TAG="open-remote-url-client-v${CLIENT_VERSION}"
-                  gh release create "$TAG" --repo NaeCqde/open_remote_url --title "$TAG" || true
-                  gh release upload "$TAG" \
-                    "target/${{ matrix.platform.target }}/release/OpenRemoteURLClient.app.zip" \
-                    client/inactive.env \
-                    README.md README.ja_JP.md README.ja_EZ.md README.zh_CN.md \
-                    --repo NaeCqde/open_remote_url --clobber
-
             - name: Wait
-              if: "!contains(matrix.platform.target, 'apple-darwin')"
               shell: bash
               run: sleep $((RANDOM % 20 + 3))
-            - name: Release Host 1 (non-macOS)
-              if: "!contains(matrix.platform.target, 'apple-darwin')"
+            - name: Release Host 1
               id: release-host-1
               uses: houseabsolute/actions-rust-release@v0
               env:
@@ -208,11 +208,11 @@ jobs:
                           "token": "${{ secrets.GITHUB_TOKEN }}"
                       }
             - name: Wait
-              if: "failure() && !contains(matrix.platform.target, 'apple-darwin')"
+              if: failure()
               shell: bash
               run: sleep $((RANDOM % 20 + 5))
-            - name: Release Host 2 (non-macOS)
-              if: "failure() && !contains(matrix.platform.target, 'apple-darwin')"
+            - name: Release Host 2
+              if: failure()
               id: release-host-2
               uses: houseabsolute/actions-rust-release@v0
               env:
@@ -228,16 +228,3 @@ jobs:
                           "repository": "NaeCqde/open_remote_url",
                           "token": "${{ secrets.GITHUB_TOKEN }}"
                       }
-
-            - name: Release Host (macOS only)
-              if: "!cancelled() && contains(matrix.platform.target, 'apple-darwin')"
-              shell: bash
-              run: |
-                  HOST_VERSION=$(cargo metadata --no-deps --manifest-path host/Cargo.toml --format-version 1 | jq -r '.packages[0].version')
-                  TAG="open-remote-url-host-v${HOST_VERSION}"
-                  gh release create "$TAG" --repo NaeCqde/open_remote_url --title "$TAG" || true
-                  gh release upload "$TAG" \
-                    "target/${{ matrix.platform.target }}/release/OpenRemoteURLHost.app.zip" \
-                    host/inactive.env \
-                    README.md README.ja_JP.md README.ja_EZ.md README.zh_CN.md \
-                    --repo NaeCqde/open_remote_url --clobber

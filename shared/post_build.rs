@@ -122,6 +122,23 @@ fn main() {
                 fs::write(info_plist, plist_content).expect("Failed to write Info.plist");
                 println!("cargo:warning={} macOS app bundle created successfully.", app_name);
 
+                // Ad-hoc codesign so macOS Gatekeeper accepts the bundle
+                let sign_status = std::process::Command::new("codesign")
+                    .args(["--sign", "-", "--force", "--deep"])
+                    .arg(&app_dir)
+                    .status();
+                match sign_status {
+                    Ok(s) if s.success() => {
+                        println!("cargo:warning={}.app ad-hoc signed.", app_name);
+                    }
+                    Ok(s) => {
+                        println!("cargo:warning=codesign exited with status {} for {}.app.", s, app_name);
+                    }
+                    Err(e) => {
+                        println!("cargo:warning=Failed to run codesign for {}.app: {}", app_name, e);
+                    }
+                }
+
                 // Create a flat, uncompressed zip containing the .app at the root
                 let zip_name = format!("{}.app.zip", app_name);
                 let zip_path = out_dir.join(&zip_name);
@@ -146,6 +163,21 @@ fn main() {
                         println!("cargo:warning=Failed to run zip for {}: {}", zip_name, e);
                     }
                 }
+
+                // Stage zip and inactive.env to workspace root for release action
+                let workspace_root = PathBuf::from(&crate_manifest_path)
+                    .parent()
+                    .and_then(|p| p.parent())
+                    .map(|p| p.to_path_buf())
+                    .unwrap_or_else(|| PathBuf::from("."));
+
+                let staged_zip = workspace_root.join(&zip_name);
+                if let Err(e) = fs::copy(&zip_path, &staged_zip) {
+                    println!("cargo:warning=Failed to stage {}: {}", zip_name, e);
+                } else {
+                    println!("cargo:warning=Staged {} to workspace root.", zip_name);
+                }
+
             }
         }
     }
