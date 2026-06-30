@@ -20,14 +20,11 @@ pub fn get_config_dir(app_type: &str) -> PathBuf {
     #[cfg(target_os = "macos")]
     {
         let home = env::var("HOME").unwrap_or_default();
-        let app_name = if app_type == "client" {
-            "OpenRemoteURLClient"
-        } else {
-            "OpenRemoteURLHost"
-        };
         PathBuf::from(home)
-            .join("Applications")
-            .join(format!("{}.app", app_name))
+            .join("Library")
+            .join("Application Support")
+            .join("open-remote-url")
+            .join(app_type)
     }
     #[cfg(target_os = "linux")]
     {

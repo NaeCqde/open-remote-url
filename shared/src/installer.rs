@@ -70,21 +70,23 @@ fn copy_env_file(app_type: &str) -> Result<(), Box<dyn std::error::Error>> {
 
     let source_env = crate::config::find_inactive_env_path(app_type);
 
-    if source_env.exists() {
-        log::info!(
-            "Copying inactive.env configuration to {:?}",
-            target_env
-        );
-        fs::copy(&source_env, &target_env)?;
-    } else if !target_env.exists() {
-        log::info!("Writing a default .env file");
-        if app_type == "client" {
-            fs::write(
-                &target_env,
-                "LISTEN=0.0.0.0:30000\nHOST_URL=http://localhost:40000\nRELAY_URL=http://localhost:30000\nPASSPHRASE=\n",
-            )?;
+    if !target_env.exists() {
+        if source_env.exists() {
+            log::info!(
+                "Copying inactive.env configuration to {:?}",
+                target_env
+            );
+            fs::copy(&source_env, &target_env)?;
         } else {
-            fs::write(&target_env, "LISTEN=0.0.0.0:40000\nPASSPHRASE=\n")?;
+            log::info!("Writing a default .env file");
+            if app_type == "client" {
+                fs::write(
+                    &target_env,
+                    "LISTEN=0.0.0.0:30000\nHOST_URL=http://localhost:40000\nRELAY_URL=http://localhost:30000\nPASSPHRASE=\n",
+                )?;
+            } else {
+                fs::write(&target_env, "LISTEN=0.0.0.0:40000\nPASSPHRASE=\n")?;
+            }
         }
     }
     Ok(())
