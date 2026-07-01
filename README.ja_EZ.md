@@ -9,7 +9,7 @@
 
 > ⚠️ **現在の動作保証について**
 > - **Linux版は現時点では未テストです。**
-> - Windows版・macOS版では、URLの転送機能（ホストのブラウザでURLを開く）のみ動作確認済みです。リバースプロキシ機能（OAuthコールバック転送）は未検証です。
+> - **Windows版・macOS版は、URLの転送機能・リバースプロキシ（OAuthコールバック転送）ともに動作確認済みです。**
 > - GitHub ActionsのCI/CDビルド時間の制限を回避するため、完成前にリポジトリをPublicに切り替えました。
 
 このツールは、**「手元のPCや仮想環境（クライアント）」で開いたWebサイトを、「別のPC（ホスト）」のブラウザで表示させ、必要なポートを自動でつないでくれるシステム**です。
@@ -87,7 +87,7 @@
 インストール用のプログラムを実行すると、この `inactive.env` が自動的に上記の「OSごとの決まったフォルダ」へ `.env` という名前に変わってコピーされます。
 
 - **インストールする前に**、フォルダの中にある `inactive.env` をメモ帳などで開き、自分の環境に合わせて設定を書き換えて保存しておいてください。
-- もしフォルダの中に `inactive.env` がない状態でインストールを行った場合は、デフォルトの設定が入った `.env` ファイルが自动的に作成されます。
+- もしフォルダの中に `inactive.env` がない状態でインストールを行った場合は、デフォルトの設定が入った `.env` ファイルが自動的に作成されます。
 
 ### ホスト設定（メインPC側: `host/inactive.env`）
 
@@ -106,12 +106,18 @@ LISTEN=0.0.0.0:30000
 HOST_URL=http://<ホストのIPアドレス>:40000
 RELAY_URL=http://<クライアントのIPアドレス>:30000
 PASSPHRASE=二人だけの合言葉
+SCHEME=
+HTTP=true
 ```
 
 - `LISTEN`: クライアントデーモンの待ち受けアドレスとポート番号（`アドレス:ポート` の形式）
 - `HOST_URL`: メインPCの住所（例: `http://<ホストのIPアドレス>:40000`）
 - `RELAY_URL`: メインPC（ホスト）がサブPC（クライアント）に折り返す際のURL。メインPC側から到達できるアドレスを指定（LAN IPやTailscale IP等。`0.0.0.0` は接続先として指定できないので注意）。
 - `PASSPHRASE`: メインPC側と一致する合言葉。空欄にすると合言葉なしで動作。
+- `SCHEME`: OSのURLスキームハンドラとして追加登録するスキームをカンマ区切りで指定（例: `vcc,unityhub`）。デーモン起動時に自動で登録されます。
+- `HTTP`: `false` にすると、`http://` と `https://` のURLハンドラを登録しません（すでに登録している場合は削除）。
+
+**カスタムURLスキームについて**: `SCHEME` に登録したスキームのURLがサブPC側で開かれると、ポート転送なしでURLをそのままメインPC（ホスト）へ送り、メインPC上の対応アプリで開きます。例えば `SCHEME=vcc` と設定すれば、サブPC（Windows）で `vcc://...` のリンクをクリックしたとき、メインPC（macOS）の VCC や ALCOM で直接開きます。
 
 ---
 
@@ -148,7 +154,6 @@ Open Remote URL - Host Status
 - Installed:  Yes (インストールされています)
 - Running:    Yes (稼働中です)
 - Listen:     http://0.0.0.0:40000/
-- Auth:       Enabled
 - Executable: /Users/<ユーザー名>/Applications/OpenRemoteURLHost.app/Contents/MacOS/open-remote-url-host
 - Config:     /Users/<ユーザー名>/Applications/OpenRemoteURLHost.app/.env
 
@@ -170,9 +175,8 @@ Open Remote URL - Client Status
 - Installed:  Yes (インストールされています)
 - Running:    Yes (稼働中です)
 - Listen:     http://0.0.0.0:30000/
-- RELAY:      http://192.168.1.20:30000/
-- HOST:       http://192.168.1.10:40000/
-- Auth:       Enabled
+- RELAY:      http://192.168.0.3:30000/
+- HOST:       http://192.168.0.2:40000/
 - Executable: /Users/<ユーザー名>/Applications/OpenRemoteURLClient.app/Contents/MacOS/open-remote-url-client
 - Config:     /Users/<ユーザー名>/Applications/OpenRemoteURLClient.app/.env
 

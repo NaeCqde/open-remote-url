@@ -1,6 +1,6 @@
 # Open Remote URL
 
-English | [简体中文](README.zh_CN.md) | [日本語 (Original)](README.ja_JP.md) | [日本語 (Non-technical)](README.ja_EZ.md)
+[English](README.md) | [简体中文](README.zh_CN.md) | [日本語 (Original)](README.ja_JP.md) | [日本語 (Non-technical)](README.ja_EZ.md)
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
@@ -12,7 +12,7 @@ English | [简体中文](README.zh_CN.md) | [日本語 (Original)](README.ja_JP.
 
 > ⚠️ **Current Operational Status**
 > - **The Linux version has not been tested at this time.**
-> - The Windows and macOS versions have been verified for URL forwarding only (opening a URL in the Host's browser). The reverse proxy functionality (OAuth callback forwarding) has not been verified.
+> - **The Windows and macOS versions have been fully verified for both URL forwarding and reverse proxy (OAuth callback forwarding).**
 > - The repository was made public before completion in order to avoid GitHub Actions CI/CD build time limits.
 
 A system that forwards web page display and OAuth login authentication to a browser on another device (Host) for centralized management.
@@ -22,7 +22,7 @@ It intercepts browser open requests on a local **Client** machine (inside VMs, D
 ### Solved Problems & Use Cases
 
 - **Smooth OAuth Logins in VM / Docker Container Dev Environments**
-    - When running CLI commands such as `wrangler login` or `supabase login` in browser-less (or clean) environments like Docker containers, the tool tries to launch a browser. You would normally copy the URL and open it in the Host's browser, but the OAuth callback to a local redirect port such as `http://localhost:8976/oauth/callback` cannot be received after login, causing authentication to fail midway.
+    - When running CLI commands such as `wrangler login` in browser-less (or clean) environments like Docker containers, the tool tries to launch a browser. You would normally need to copy the URL and open it in the Host's browser, but the OAuth callback to a local redirect port such as `http://localhost:8976/oauth/callback` cannot be received after login, causing authentication to fail midway.
     - This tool not only detects when a URL is opened on the Client and displays it on the Host, but also **automatically scans for ports that were allocated at the time the URL was opened (history up to 15 seconds prior) and ports newly opened after the URL was launched (checked for up to 3 seconds), and automatically establishes a temporary reverse proxy from the Host to the Client**. This allows the containerized development environment to automatically receive the authentication token simply by clicking the authentication button in the Host's browser, completing the login seamlessly.
 
 - **Unified Browser Sessions & Credentials in 2-PC Setups (Streaming/Gaming)**
@@ -84,7 +84,7 @@ _Note: If a setting is defined in both system environment variables and the `.en
 ### Installation Behavior
 
 The distribution package includes an `inactive.env` template.
-Running the installer script automatically copies the `inactive.env` from the installation folder to the OS-specific configuration folder and renames it to `.env`.
+Running the installer automatically copies the `inactive.env` from the installation folder to the OS-specific configuration folder and renames it to `.env`.
 
 - **Before running the installer**, please open the `inactive.env` file in the package folder using a text editor, customize the settings for your environment, and save it.
 - If the installer is run without `inactive.env` present in the folder, a default `.env` file containing default configuration values will be generated automatically in the configuration folder.
@@ -108,14 +108,26 @@ LISTEN=0.0.0.0:30000
 HOST_URL=http://<host_ip>:40000
 RELAY_URL=http://<client_ip>:30000
 PASSPHRASE=some-shared-secret
+SCHEME=
+HTTP=true
 ```
 
 | Variable | Description | Default |
 |---|---|---|
 | `LISTEN` | Bind address and port for the Client daemon (`<host>:<port>`). | `0.0.0.0:30000` |
 | `HOST_URL` | URL of the remote Host daemon. Supports `http://` and `https://` (TLS via rustls, no OpenSSL required). | `http://localhost:40000` |
-| `RELAY_URL` | URL that the Host uses to call back into this Client for reverse proxying. Must be reachable from the Host machine — use the Client's LAN/Tailscale IP, not `0.0.0.0`. | `http://localhost:30000` |
+| `RELAY_URL` | URL that the Host uses to call back into this Client for reverse proxying. Must be reachable from the Host machine — use the Client's LAN/Tailscale IP, not `0.0.0.0`. Supports `http://` and `https://` (rustls). | `http://localhost:30000` |
 | `PASSPHRASE` | Key matching the Host's passphrase. Leave empty to disable authentication. | _(empty)_ |
+| `SCHEME` | Comma-separated list of additional URL schemes to register as OS handlers at daemon startup. Example: `vcc,unityhub` | _(empty)_ |
+| `HTTP` | Set to `false` to skip registering `http://` and `https://` handlers (and remove any existing registrations). | `true` |
+
+#### Custom URL Schemes
+
+When a URL whose scheme is listed in `SCHEME` is opened on the Client OS, the URL is **forwarded directly to the Host without port forwarding**, and opened by the appropriate native app on the Host (which must have the app installed).
+
+For example, with `SCHEME=vcc,unityhub`:
+- User clicks a `vcc://...` link on the Client (Windows)
+- The URL is sent to the Host (macOS) and opened directly in VCC (VRChat Creator Companion) or ALCOM
 
 ---
 
@@ -126,8 +138,6 @@ The tool is installed to OS-specific directories as detailed below, and is confi
 - **Windows**: `%LOCALAPPDATA%\Programs\open-remote-url\<client|host>\`
 - **macOS**: `~/Applications/OpenRemoteURL<Client|Host>.app/`
 - **Linux**: `~/.local/bin/open-remote-url/<client|host>/`
-
-**⚠ Before running the installer, open `inactive.env` inside the folder in a text editor, write your settings, and save the file.**
 
 To register and start the daemons:
 
@@ -144,7 +154,7 @@ _After installation, set **Open Remote URL Client** as the default web browser i
 
 ---
 
-## Verification
+## Status Check
 
 Double-clicking the app bundle (or executable) opens the **GUI Control Panel**, which shows:
 - Installation status (Installed / Not Installed)
@@ -164,7 +174,6 @@ Open Remote URL - Host Status
 - Installed:  Yes
 - Running:    Yes
 - Listen:     http://0.0.0.0:40000/
-- Auth:       Enabled
 - Executable: /Users/<username>/Applications/OpenRemoteURLHost.app/Contents/MacOS/open-remote-url-host
 - Config:     /Users/<username>/Applications/OpenRemoteURLHost.app/.env
 
@@ -186,9 +195,8 @@ Open Remote URL - Client Status
 - Installed:  Yes
 - Running:    Yes
 - Listen:     http://0.0.0.0:30000/
-- RELAY:      http://192.168.1.20:30000/
-- HOST:       http://192.168.1.10:40000/
-- Auth:       Enabled
+- RELAY:      http://192.168.0.3:30000/
+- HOST:       http://192.168.0.2:40000/
 - Executable: /Users/<username>/Applications/OpenRemoteURLClient.app/Contents/MacOS/open-remote-url-client
 - Config:     /Users/<username>/Applications/OpenRemoteURLClient.app/.env
 
