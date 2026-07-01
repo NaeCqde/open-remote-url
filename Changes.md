@@ -4,13 +4,10 @@
 
 ### Fixed
 
-- **macOS installer ignored HTTP=false for Info.plist**: `setup_macos_app_bundle` was unconditionally writing `http` and `https` into `CFBundleURLTypes` regardless of the `HTTP` env setting. It now reads `ClientConfig` (which is already loaded from `.env` at install time) and writes only the schemes that are actually configured.
+- **macOS inactive.env path under App Translocation**: Replaced the previous workaround (which returned the OS config path) with a proper call to `SecTranslocateCreateOriginalPathForURL` (Security framework). `find_inactive_env_path` now resolves the real `.app` bundle location even when macOS Gatekeeper has remounted the app at a temporary path, so the GUI always shows the correct `inactive.env` path next to the original `.app` in the download folder.
 
-- **load_env CLI fallback order**: Clarified and extended the `.env` search order for non-installed (CLI / dev) usage:
-  1. Installed config dir (OS-specific, e.g. `~/Library/Application Support/…`)
-  2. `inactive.env` bundled alongside the executable / `.app`
-  3. `.env` in the current working directory
-  4. `inactive.env` in the current working directory
-  5. Walk parent directories for `.env` (standard dotenvy behaviour)
+### Changed
 
-  Previously step 3/4 were missing, so running `--daemon` from a directory containing `.env` or `inactive.env` could fall through to dotenvy's parent-walk instead of picking up the file in the exact working directory first.
+- **`load_env` priority order** (reverted and simplified): inactive.env is no longer read at runtime — it is promoted to the OS config folder on install. Runtime priority is now:
+  1. `.env` in the current working directory (CLI / dev usage)
+  2. `.env` in the OS-specific installed config folder

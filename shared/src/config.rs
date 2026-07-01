@@ -59,20 +59,18 @@ pub fn find_inactive_env_path(app_type: &str) -> PathBuf {
 
             let exe_dir_str = parent.to_string_lossy();
             if exe_dir_str.contains(".app/Contents/MacOS") {
-                // Under macOS App Translocation (Gatekeeper quarantine), the .app is
-                // remounted at a temporary path like
-                // /private/var/folders/.../AppTranslocation/.../d/<App>.app/...
-                // The inactive.env that sits next to the original .app is NOT visible
-                // from that translocated path, so traversing upward only produces a
-                // meaningless temp path.  In that case, return the install-time config
-                // path so the GUI shows where the file will live after installation.
-                if exe_dir_str.contains("AppTranslocation") {
-                    return get_config_path(app_type);
-                }
-
                 if let Some(contents) = parent.parent() {
                     if let Some(app_root) = contents.parent() {
-                        if let Some(app_parent) = app_root.parent() {
+                        // Under macOS App Translocation the .app is remounted at a
+                        // temporary read-only path.  Use SecTranslocate to resolve the
+                        // original location so we can find the inactive.env that sits
+                        // next to the real .app in the download folder.
+                        #[cfg(target_os = "macos")]
+                        let real_app_root = macos_de_translocate(app_root);
+                        #[cfg(not(target_os = "macos"))]
+                        let real_app_root = app_root.to_path_buf();
+
+                        if let Some(app_parent) = real_app_root.parent() {
                             let p_app_type = app_parent.join(app_type).join("inactive.env");
                             if p_app_type.exists() {
                                 return p_app_type;
@@ -81,9 +79,8 @@ pub fn find_inactive_env_path(app_type: &str) -> PathBuf {
                             if p.exists() {
                                 return p;
                             }
-                            // Use the app-relative path as the canonical fallback so the
-                            // displayed path is always meaningful (not "/" when Finder sets
-                            // the working directory to the filesystem root).
+                            // Canonical fallback: always a meaningful path even if the
+                            // file does not yet exist (avoids "/" when Finder sets cwd).
                             return p_app_type;
                         }
                     }
@@ -114,36 +111,127 @@ pub fn find_inactive_env_path(app_type: &str) -> PathBuf {
     p
 }
 
+/// Resolve the real filesystem path of a macOS App-Translocated bundle.
+/// If the path is not translocated, returns it unchanged.
+#[cfg(target_os = "macos")]
+fn macos_de_translocate(path: &Path) -> PathBuf {
+    use std::ffi::CString;
+    const KCF_STRING_ENCODING_UTF8: u32 = 0x08000100;
+    const KCF_URL_POSIX_PATH_STYLE: i64 = 0;
+
+    #[link(name = "CoreFoundation", kind = "framework")]
+    #[link(name = "Security", kind = "framework")]
+    extern "C" {
+        fn CFStringCreateWithCString(
+            alloc: *const std::ffi::c_void,
+            c_str: *const std::ffi::c_char,
+            encoding: u32,
+        ) -> *mut std::ffi::c_void;
+        fn CFURLCreateWithFileSystemPath(
+            alloc: *const std::ffi::c_void,
+            path: *mut std::ffi::c_void,
+            style: i64,
+            is_dir: bool,
+        ) -> *mut std::ffi::c_void;
+        fn CFURLGetFileSystemRepresentation(
+            url: *const std::ffi::c_void,
+            resolve: bool,
+            buf: *mut u8,
+            len: i64,
+        ) -> bool;
+        fn SecTranslocateIsTranslocatedURL(
+            url: *mut std::ffi::c_void,
+            is_translocated: *mut bool,
+            error: *mut *mut std::ffi::c_void,
+        ) -> bool;
+        fn SecTranslocateCreateOriginalPathForURL(
+            url: *mut std::ffi::c_void,
+            error: *mut *mut std::ffi::c_void,
+        ) -> *mut std::ffi::c_void;
+        fn CFRelease(cf: *const std::ffi::c_void);
+    }
+
+    let path_str = match path.to_str() {
+        Some(s) => s,
+        None => return path.to_path_buf(),
+    };
+    let c_path = match CString::new(path_str) {
+        Ok(s) => s,
+        Err(_) => return path.to_path_buf(),
+    };
+
+    unsafe {
+        let cf_str = CFStringCreateWithCString(
+            std::ptr::null(),
+            c_path.as_ptr(),
+            KCF_STRING_ENCODING_UTF8,
+        );
+        if cf_str.is_null() {
+            return path.to_path_buf();
+        }
+
+        let cf_url = CFURLCreateWithFileSystemPath(
+            std::ptr::null(),
+            cf_str,
+            KCF_URL_POSIX_PATH_STYLE,
+            true,
+        );
+        CFRelease(cf_str);
+        if cf_url.is_null() {
+            return path.to_path_buf();
+        }
+
+        let mut is_translocated = false;
+        let ok = SecTranslocateIsTranslocatedURL(
+            cf_url,
+            &mut is_translocated,
+            std::ptr::null_mut(),
+        );
+        if !ok || !is_translocated {
+            CFRelease(cf_url);
+            return path.to_path_buf();
+        }
+
+        let original_url =
+            SecTranslocateCreateOriginalPathForURL(cf_url, std::ptr::null_mut());
+        CFRelease(cf_url);
+        if original_url.is_null() {
+            return path.to_path_buf();
+        }
+
+        let mut buf = vec![0u8; 4096];
+        let ok = CFURLGetFileSystemRepresentation(
+            original_url,
+            true,
+            buf.as_mut_ptr(),
+            buf.len() as i64,
+        );
+        CFRelease(original_url);
+        if !ok {
+            return path.to_path_buf();
+        }
+
+        let end = buf.iter().position(|&b| b == 0).unwrap_or(buf.len());
+        match std::str::from_utf8(&buf[..end]) {
+            Ok(s) => PathBuf::from(s),
+            Err(_) => path.to_path_buf(),
+        }
+    }
+}
+
 pub fn load_env(app_type: &str) {
-    // 1. Installed config dir (.env)
-    let path = get_config_path(app_type);
-    if path.exists() {
-        let _ = dotenvy::from_path_override(&path);
-        return;
-    }
-
-    // 2. inactive.env bundled alongside the executable / app bundle
-    let inactive = find_inactive_env_path(app_type);
-    if inactive.exists() {
-        let _ = dotenvy::from_path_override(&inactive);
-        return;
-    }
-
-    // 3. .env or inactive.env in the current working directory (CLI / dev usage)
-    let cwd = env::current_dir().unwrap_or_default();
-    let cwd_env = cwd.join(".env");
+    // 1. Current working directory .env — highest priority (CLI / dev usage).
+    let cwd_env = env::current_dir().unwrap_or_default().join(".env");
     if cwd_env.exists() {
         let _ = dotenvy::from_path_override(&cwd_env);
         return;
     }
-    let cwd_inactive = cwd.join("inactive.env");
-    if cwd_inactive.exists() {
-        let _ = dotenvy::from_path_override(&cwd_inactive);
-        return;
-    }
 
-    // 4. Walk parent directories for a .env file (standard dotenvy behaviour)
-    let _ = dotenvy::dotenv_override();
+    // 2. OS-specific installed config folder.
+    let installed = get_config_path(app_type);
+    if installed.exists() {
+        let _ = dotenvy::from_path_override(&installed);
+    }
 }
 
 pub fn open_dir_in_file_manager(path: &Path) -> Result<(), Box<dyn std::error::Error>> {
