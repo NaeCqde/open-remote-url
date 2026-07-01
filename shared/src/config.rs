@@ -115,17 +115,35 @@ pub fn find_inactive_env_path(app_type: &str) -> PathBuf {
 }
 
 pub fn load_env(app_type: &str) {
+    // 1. Installed config dir (.env)
     let path = get_config_path(app_type);
     if path.exists() {
         let _ = dotenvy::from_path_override(&path);
-    } else {
-        let inactive = find_inactive_env_path(app_type);
-        if inactive.exists() {
-            let _ = dotenvy::from_path_override(&inactive);
-        } else {
-            let _ = dotenvy::dotenv_override();
-        }
+        return;
     }
+
+    // 2. inactive.env bundled alongside the executable / app bundle
+    let inactive = find_inactive_env_path(app_type);
+    if inactive.exists() {
+        let _ = dotenvy::from_path_override(&inactive);
+        return;
+    }
+
+    // 3. .env or inactive.env in the current working directory (CLI / dev usage)
+    let cwd = env::current_dir().unwrap_or_default();
+    let cwd_env = cwd.join(".env");
+    if cwd_env.exists() {
+        let _ = dotenvy::from_path_override(&cwd_env);
+        return;
+    }
+    let cwd_inactive = cwd.join("inactive.env");
+    if cwd_inactive.exists() {
+        let _ = dotenvy::from_path_override(&cwd_inactive);
+        return;
+    }
+
+    // 4. Walk parent directories for a .env file (standard dotenvy behaviour)
+    let _ = dotenvy::dotenv_override();
 }
 
 pub fn open_dir_in_file_manager(path: &Path) -> Result<(), Box<dyn std::error::Error>> {

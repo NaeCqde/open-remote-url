@@ -369,9 +369,31 @@ fn setup_macos_app_bundle(
         }
     }
 
-    // Always rewrite Info.plist at install time for clients to register http/https URL schemes.
-    // This handles both the .app-bundle copy path and the raw-binary fallback path.
+    // Rewrite Info.plist for clients to register the URL schemes specified in config.
+    // Reads SCHEME / HTTP from the already-loaded env so that HTTP=false is respected.
     if app_type == "client" {
+        let config = crate::config::ClientConfig::load();
+        let mut schemes: Vec<String> = config.schemes.clone();
+        if config.register_http {
+            schemes.push("http".to_string());
+            schemes.push("https".to_string());
+        }
+
+        let url_types_block = if schemes.is_empty() {
+            String::new()
+        } else {
+            let scheme_entries: String = schemes
+                .iter()
+                .map(|s| format!("                <string>{}</string>\n", s))
+                .collect();
+            format!(
+                "    <key>CFBundleURLTypes</key>\n    <array>\n        <dict>\n            \
+                 <key>CFBundleURLName</key>\n            <string>URL Schemes</string>\n            \
+                 <key>CFBundleURLSchemes</key>\n            <array>\n{scheme_entries}            \
+                 </array>\n        </dict>\n    </array>\n"
+            )
+        };
+
         let info_plist = app_dir.join("Contents").join("Info.plist");
         let plist_content = format!(
             r#"<?xml version="1.0" encoding="UTF-8"?>
@@ -379,51 +401,23 @@ fn setup_macos_app_bundle(
 <plist version="1.0">
 <dict>
     <key>CFBundleIdentifier</key>
-    <string>quest.nae.open-remote-url.{}</string>
+    <string>quest.nae.open-remote-url.{app_type}</string>
     <key>CFBundleName</key>
-    <string>{}</string>
+    <string>{name}</string>
     <key>CFBundlePackageType</key>
     <string>APPL</string>
     <key>CFBundleSignature</key>
     <string>????</string>
     <key>CFBundleExecutable</key>
-    <string>{}</string>
+    <string>{bin_name}</string>
     <key>LSUIElement</key>
     <true/>
-    <key>CFBundleURLTypes</key>
-    <array>
-        <dict>
-            <key>CFBundleURLName</key>
-            <string>Web site URL</string>
-            <key>CFBundleURLSchemes</key>
-            <array>
-                <string>http</string>
-                <string>https</string>
-            </array>
-        </dict>
-    </array>
-    <key>CFBundleDocumentTypes</key>
-    <array>
-        <dict>
-            <key>CFBundleTypeName</key>
-            <string>HTML Document</string>
-            <key>CFBundleTypeRole</key>
-            <string>Viewer</string>
-            <key>LSItemContentTypes</key>
-            <array>
-                <string>public.html</string>
-                <string>public.xhtml</string>
-            </array>
-        </dict>
-    </array>
-</dict>
+{url_types_block}</dict>
 </plist>
 "#,
-            app_type,
-            name,
-            binary_name(app_type),
+            bin_name = binary_name(app_type),
         );
-        log::info!("Writing Info.plist with URL scheme registration to {:?}", info_plist);
+        log::info!("Writing Info.plist (schemes: {:?}) to {:?}", schemes, info_plist);
         fs::write(&info_plist, plist_content)?;
     }
 
