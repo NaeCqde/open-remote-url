@@ -1,15 +1,16 @@
 /// Integration tests for the host daemon in isolation.
 ///
-/// These tests start a host-like HTTP server and send requests to it,
-/// verifying that:
-///   - GET /  returns "alive"
-///   - POST /open  responds immediately and does not block the runtime
-///   - POST /ports (Add)  creates proxy listeners
-///   - POST /open after POST /ports  still responds without hanging
+/// Test sequence matches the real-world bug scenario:
+///   POST /open  →  POST /ports  →  POST /open
 ///
-/// The "open URL" handler uses spawn_blocking to avoid occupying a tokio
-/// worker thread while the OS launches the browser.  The tests confirm this
-/// by checking that concurrent requests all complete within a tight deadline.
+/// Root causes fixed:
+///   1. open::that() was a synchronous blocking call inside an async handler
+///      → fixed with tokio::task::spawn_blocking
+///   2. reqwest::Client was created per-proxy-request with no timeout; if the
+///      Windows relay is unreachable every browser sub-request (HTML, CSS, JS,
+///      images …) hangs indefinitely, exhausting file descriptors and preventing
+///      the main server from accepting new connections
+///      → fixed: one client per proxy, connect_timeout=10s, timeout=30s
 
 use axum::{
     extract::State,
@@ -62,7 +63,7 @@ async fn wait_for_port(port: u16, timeout: Duration) {
     }
 }
 
-// ── host router (mirrors host/src/daemon.rs) ──────────────────────────────────
+// ── host router (mirrors host/src/daemon.rs with the same fixes applied) ─────
 
 #[derive(Clone)]
 struct HostState {
@@ -85,9 +86,18 @@ async fn handle_open(
 ) -> impl IntoResponse {
     let open_fn = state.open_fn.clone();
     let url = payload.url.clone();
-    // Mirrors the fix: use spawn_blocking so the runtime is not occupied.
+    // Fix 1: use spawn_blocking so the runtime is never occupied by open::that().
     tokio::task::spawn_blocking(move || open_fn(url));
     (StatusCode::OK, "OK")
+}
+
+/// Build a reqwest client with the same timeouts as the production fix.
+fn relay_client() -> reqwest::Client {
+    reqwest::Client::builder()
+        .connect_timeout(Duration::from_secs(10))
+        .timeout(Duration::from_secs(30))
+        .build()
+        .unwrap()
 }
 
 async fn handle_ports(
@@ -99,6 +109,8 @@ async fn handle_ports(
         PortAction::Add => {
             for &port in &req.ports {
                 let relay = req.relay_url.clone();
+                // Fix 2: build client once per proxy with timeouts.
+                let client = relay_client();
                 let listener = match TcpListener::bind(format!("127.0.0.1:{}", port)).await {
                     Ok(l) => l,
                     Err(_) => continue,
@@ -110,7 +122,10 @@ async fn handle_ports(
                               _headers: axum::http::HeaderMap,
                               body: axum::body::Bytes| {
                             let relay = relay.clone();
-                            async move { proxy_fallback(port, method, uri, body, relay).await }
+                            let client = client.clone();
+                            async move {
+                                proxy_fallback(port, method, uri, body, relay, client).await
+                            }
                         },
                     );
                     let _ = axum::serve(listener, app).await;
@@ -136,6 +151,7 @@ async fn proxy_fallback(
     uri: axum::http::Uri,
     body: axum::body::Bytes,
     relay_url: String,
+    client: reqwest::Client,
 ) -> impl IntoResponse {
     let proxy_req = ProxyRequest {
         port,
@@ -147,7 +163,6 @@ async fn proxy_fallback(
         headers: HashMap::new(),
         body: BASE64_STANDARD.encode(&body),
     };
-    let client = reqwest::Client::new();
     let relay_resp = match client
         .post(format!("{}/proxy", relay_url))
         .json(&proxy_req)
@@ -171,8 +186,6 @@ async fn proxy_fallback(
         .unwrap_or_else(|_| StatusCode::INTERNAL_SERVER_ERROR.into_response())
 }
 
-// ── tests ─────────────────────────────────────────────────────────────────────
-
 fn make_host(open_fn: impl Fn(String) + Send + Sync + 'static) -> (HostState, Router) {
     let state = HostState {
         open_fn: Arc::new(open_fn),
@@ -181,6 +194,8 @@ fn make_host(open_fn: impl Fn(String) + Send + Sync + 'static) -> (HostState, Ro
     let router = host_router(state.clone());
     (state, router)
 }
+
+// ── tests ─────────────────────────────────────────────────────────────────────
 
 /// GET / returns "alive".
 #[tokio::test]
@@ -199,16 +214,12 @@ async fn host_health_check_returns_alive() {
     _h.abort();
 }
 
-/// POST /open responds with 200 immediately.
+/// POST /open responds with 200 OK.
 #[tokio::test]
 async fn host_open_url_returns_ok() {
     let l = bind_free().await;
     let port = port_of(&l);
-    let opened = Arc::new(std::sync::Mutex::new(Vec::<String>::new()));
-    let opened2 = opened.clone();
-    let (_, router) = make_host(move |url| {
-        opened2.lock().unwrap().push(url);
-    });
+    let (_, router) = make_host(|_| {});
     let _h = serve(l, router).await;
     wait_for_port(port, Duration::from_secs(2)).await;
 
@@ -221,39 +232,28 @@ async fn host_open_url_returns_ok() {
     _h.abort();
 }
 
-/// POST /open must not block the runtime: a slow open_fn must not prevent
-/// subsequent requests from being served.
-///
-/// This is the regression test for the original bug where open::that() was
-/// called synchronously, freezing the daemon.
+/// Regression test for bug fix 1:
+/// open_fn takes 500 ms, but GET / must respond within 200 ms concurrently,
+/// proving that spawn_blocking keeps the runtime free.
 #[tokio::test]
-async fn host_open_url_does_not_block_runtime() {
+async fn host_open_does_not_block_runtime() {
     let l = bind_free().await;
     let host_port = port_of(&l);
-
-    // open_fn sleeps for 500 ms, simulating a slow OS browser launch.
-    let (_, router) = make_host(|_url| {
-        std::thread::sleep(Duration::from_millis(500));
-    });
+    let (_, router) = make_host(|_| std::thread::sleep(Duration::from_millis(500)));
     let _h = serve(l, router).await;
     wait_for_port(host_port, Duration::from_secs(2)).await;
 
     let client = reqwest::Client::new();
     let base = format!("http://127.0.0.1:{}", host_port);
 
-    // Fire POST /open (slow) and GET / (fast) concurrently.
-    // Both must finish within 300 ms even though open_fn takes 500 ms,
-    // proving that spawn_blocking keeps the runtime free.
-    let open_fut = client
-        .post(format!("{}/open", base))
-        .json(&OpenUrlRequest { url: "https://example.com".into() })
-        .send();
-    let health_fut = client.get(format!("{}/", base)).send();
-
-    let deadline = Duration::from_millis(300);
     let (open_res, health_res) = tokio::time::timeout(
-        deadline,
-        futures::future::join(open_fut, health_fut),
+        Duration::from_millis(200),
+        futures::future::join(
+            client.post(format!("{}/open", base))
+                .json(&OpenUrlRequest { url: "https://example.com".into() })
+                .send(),
+            client.get(format!("{}/", base)).send(),
+        ),
     )
     .await
     .expect("requests timed out — runtime was blocked by open_fn");
@@ -263,16 +263,103 @@ async fn host_open_url_does_not_block_runtime() {
     _h.abort();
 }
 
-/// POST /ports (Add) causes the host to bind a proxy listener on the given port.
+/// Regression test for bug fix 2:
+/// POST /open → POST /ports (relay that accepts TCP but never replies) → POST /open
+///
+/// Without the timeout fix, each browser sub-request through the proxy would
+/// hang forever, eventually exhausting file descriptors and freezing the daemon.
+/// With the fix the proxy requests time out and the second POST /open completes.
+#[tokio::test]
+async fn open_ports_open_sequence_host_stays_responsive() {
+    // "Black-hole" relay: accepts TCP connections but never sends any data.
+    // Simulates a Windows relay that is slow or unreachable.
+    let blackhole_l = bind_free().await;
+    let blackhole_port = port_of(&blackhole_l);
+    tokio::spawn(async move {
+        loop {
+            // Accept but ignore — holds the connection open silently.
+            if let Ok((_stream, _)) = blackhole_l.accept().await {}
+        }
+    });
+
+    // Host
+    let host_l = bind_free().await;
+    let host_port = port_of(&host_l);
+    let opened = Arc::new(std::sync::Mutex::new(Vec::<String>::new()));
+    let opened2 = opened.clone();
+    let (_, router) = make_host(move |url| opened2.lock().unwrap().push(url));
+    let _h = serve(host_l, router).await;
+    wait_for_port(host_port, Duration::from_secs(2)).await;
+
+    let client = reqwest::Client::new();
+    let base = format!("http://127.0.0.1:{}", host_port);
+
+    // Step 1: POST /open (first URL)
+    let s1 = client
+        .post(format!("{}/open", base))
+        .json(&OpenUrlRequest { url: "https://first.example.com".into() })
+        .send().await.unwrap()
+        .status();
+    assert_eq!(s1.as_u16(), 200, "first /open must return 200");
+
+    // Step 2: POST /ports — proxy will point to the black-hole relay
+    let proxy_port = {
+        let tmp = bind_free().await;
+        let p = port_of(&tmp);
+        drop(tmp);
+        p
+    };
+    let s2 = client
+        .post(format!("{}/ports", base))
+        .json(&PortsRequest {
+            ports: vec![proxy_port],
+            action: PortAction::Add,
+            relay_url: format!("http://127.0.0.1:{}", blackhole_port),
+        })
+        .send().await.unwrap()
+        .status();
+    assert_eq!(s2.as_u16(), 200, "POST /ports must return 200");
+
+    wait_for_port(proxy_port, Duration::from_secs(3)).await;
+
+    // Simulate browser making several parallel requests through the proxy.
+    // Each will be forwarded to the black-hole relay and hang until the
+    // connect_timeout (10 s in production; in the test we rely on timeout
+    // being present — actual timeout is not waited for to keep test fast).
+    let proxy_client = reqwest::Client::builder()
+        .timeout(Duration::from_millis(100)) // test-side short timeout
+        .build()
+        .unwrap();
+    let proxy_base = format!("http://127.0.0.1:{}", proxy_port);
+    let futs: Vec<_> = (0..5)
+        .map(|_| proxy_client.get(proxy_base.clone()).send())
+        .collect();
+    let _ = futures::future::join_all(futs).await; // errors are expected
+
+    // Step 3: POST /open again — must not hang even though proxy connections
+    // are/were pending.
+    let s3 = tokio::time::timeout(
+        Duration::from_millis(500),
+        client
+            .post(format!("{}/open", base))
+            .json(&OpenUrlRequest { url: "https://second.example.com".into() })
+            .send(),
+    )
+    .await
+    .expect("second POST /open timed out — daemon was frozen after proxy exhaustion")
+    .unwrap()
+    .status();
+    assert_eq!(s3.as_u16(), 200, "second /open must return 200");
+
+    _h.abort();
+}
+
+/// POST /ports (Add) creates a working proxy listener.
 #[tokio::test]
 async fn host_ports_add_creates_listener() {
-    let l = bind_free().await;
-    let host_port = port_of(&l);
-
-    // Mock relay: always returns "relay ok".
-    let relay_l = bind_free().await;
-    let relay_port = port_of(&relay_l);
-    let relay_app = Router::new().route(
+    let mock_relay_l = bind_free().await;
+    let mock_relay_port = port_of(&mock_relay_l);
+    let mock_relay_app = Router::new().route(
         "/proxy",
         post(|| async {
             let resp = ProxyResponse {
@@ -283,14 +370,15 @@ async fn host_ports_add_creates_listener() {
             (StatusCode::OK, Json(resp))
         }),
     );
-    let _relay = serve(relay_l, relay_app).await;
+    let _relay = serve(mock_relay_l, mock_relay_app).await;
 
+    let host_l = bind_free().await;
+    let host_port = port_of(&host_l);
     let (_, router) = make_host(|_| {});
-    let _h = serve(l, router).await;
+    let _h = serve(host_l, router).await;
     wait_for_port(host_port, Duration::from_secs(2)).await;
-    wait_for_port(relay_port, Duration::from_secs(2)).await;
+    wait_for_port(mock_relay_port, Duration::from_secs(2)).await;
 
-    // Acquire a free port then release it for the host to bind.
     let proxy_port = {
         let tmp = bind_free().await;
         let p = port_of(&tmp);
@@ -298,16 +386,14 @@ async fn host_ports_add_creates_listener() {
         p
     };
 
-    let status = reqwest::Client::new()
+    reqwest::Client::new()
         .post(format!("http://127.0.0.1:{}/ports", host_port))
         .json(&PortsRequest {
             ports: vec![proxy_port],
             action: PortAction::Add,
-            relay_url: format!("http://127.0.0.1:{}", relay_port),
+            relay_url: format!("http://127.0.0.1:{}", mock_relay_port),
         })
-        .send().await.unwrap()
-        .status();
-    assert_eq!(status.as_u16(), 200);
+        .send().await.unwrap();
 
     wait_for_port(proxy_port, Duration::from_secs(3)).await;
 
@@ -316,63 +402,5 @@ async fn host_ports_add_creates_listener() {
         .send().await.unwrap()
         .text().await.unwrap();
     assert_eq!(body, "relay ok");
-    _h.abort();
-}
-
-/// Full scenario: POST /ports then POST /open then POST /open again.
-/// All requests must succeed without the daemon freezing.
-#[tokio::test]
-async fn host_open_after_ports_still_responds() {
-    let l = bind_free().await;
-    let host_port = port_of(&l);
-    let opened = Arc::new(std::sync::Mutex::new(0u32));
-    let opened2 = opened.clone();
-    let (_, router) = make_host(move |_| {
-        *opened2.lock().unwrap() += 1;
-    });
-    let _h = serve(l, router).await;
-    wait_for_port(host_port, Duration::from_secs(2)).await;
-
-    let client = reqwest::Client::new();
-    let base = format!("http://127.0.0.1:{}", host_port);
-
-    // Simulate: windows client sends ports.
-    let proxy_port = {
-        let tmp = bind_free().await;
-        let p = port_of(&tmp);
-        drop(tmp);
-        p
-    };
-    client
-        .post(format!("{}/ports", base))
-        .json(&PortsRequest {
-            ports: vec![proxy_port],
-            action: PortAction::Add,
-            relay_url: "http://127.0.0.1:1".into(), // relay not needed for this test
-        })
-        .send().await.unwrap();
-
-    // Simulate: windows client sends first URL open.
-    let s1 = client
-        .post(format!("{}/open", base))
-        .json(&OpenUrlRequest { url: "https://first.example.com".into() })
-        .send().await.unwrap()
-        .status();
-    assert_eq!(s1.as_u16(), 200);
-
-    // Simulate: windows client sends second URL open — must not hang.
-    let s2 = tokio::time::timeout(
-        Duration::from_millis(500),
-        client
-            .post(format!("{}/open", base))
-            .json(&OpenUrlRequest { url: "https://second.example.com".into() })
-            .send(),
-    )
-    .await
-    .expect("second POST /open timed out — daemon was frozen")
-    .unwrap()
-    .status();
-    assert_eq!(s2.as_u16(), 200);
-
     _h.abort();
 }

@@ -34,6 +34,9 @@ struct ProxyState {
     port: u16,
     relay_url: String,
     passphrase: Option<String>,
+    // Shared across all requests for this proxy.  Built once with timeouts so
+    // that a slow or unreachable relay does not hold file-descriptors forever.
+    client: reqwest::Client,
 }
 
 pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
@@ -172,6 +175,11 @@ async fn start_proxy(port: u16, relay_url: String, state: Arc<ServerState>) {
     let active_proxies_clone = state.active_proxies.clone();
     let passphrase_clone = state.passphrase.clone();
     let relay_url_clone = relay_url.clone();
+    let relay_client = reqwest::Client::builder()
+        .connect_timeout(Duration::from_secs(10))
+        .timeout(Duration::from_secs(30))
+        .build()
+        .unwrap_or_else(|_| reqwest::Client::new());
 
     tokio::spawn(async move {
         log::info!("Starting temporary proxy server on 127.0.0.1:{}", port);
@@ -181,6 +189,7 @@ async fn start_proxy(port: u16, relay_url: String, state: Arc<ServerState>) {
                 port,
                 relay_url: relay_url_clone,
                 passphrase: passphrase_clone,
+                client: relay_client,
             });
 
         // Use 127.0.0.1 to avoid runtime panic with 127.0.0.1 parse
@@ -263,8 +272,7 @@ async fn handle_proxy_fallback(
         body: body_base64,
     };
 
-    let client = reqwest::Client::new();
-    let mut post_req = client
+    let mut post_req = state.client
         .post(format!("{}/proxy", state.relay_url))
         .json(&proxy_req);
     if let Some(ref phrase) = state.passphrase {
