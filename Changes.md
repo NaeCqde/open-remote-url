@@ -1,20 +1,13 @@
-# Change Log
+# Changes
 
-All notable changes to the `open_remote_url` project are documented below.
-
-## [2026-05-26]
-
-### Added
-- **Centralized Config Parsing**: Added `shared/src/config.rs` to unify configuration reads. Environment options are restricted to:
-  - **Host**: `HOST`, `PORT`, `PASSPHRASE`
-  - **Client**: `HOST_URL`, `CLIENT_HOST`, `CLIENT_PORT`, `PASSPHRASE`
-- **WorkingDirectory Config**: Configured plists, systemd services, and startup codes (`main` entry point) to set the working directory to the parent executable directory. This allows background daemons to correctly locate and parse `.env` files next to the executables.
-- **Auto-Start on Installation**: Added `launchctl start` configuration within macOS `installer.rs` routines so that `--install` starts the background daemon immediately.
-- **Stdout Status Output**: Replaced GUI popup modules (Win32 MessageBox, AppleScript, zenity/kdialog dialogs) with standard stdout console prints (`println!`). Running either executable without arguments outputs detailed installation and daemon running status to stdout.
-- **Clean Registry Cleanup**: Updated `uninstall` script handlers to force stop background binaries and completely sweep leftover browser protocols, launch plists, and systemd units.
-- **Term-Symmetrical installer/uninstaller flags**: Implemented dynamic installer logic inside both `open-remote-url` and `open-remote-url-host` using `--install` and `--uninstall` parameters.
+## [2026-07-02]
 
 ### Changed
-- **Host / Client Naming**: Renamed the server module to `host` and updated workspace cargo references.
-- **Passphrase Renaming**: Renamed `AUTH_TOKEN`/`auth_token` authentication references to `PASSPHRASE`/`passphrase`.
-- **Removed RELAY_URL env**: Removed `RELAY_URL` environment overrides in favor of dynamic local network IP detection.
+
+- **README.md**: Aligned wording with `README.ja_JP.md` as the source of truth.
+  - Updated the OAuth description to match the Japanese original ("you would normally need to copy the URL…")
+  - Added rustls support note to `RELAY_URL` description
+  - Unified Custom URL Schemes section (added ALCOM to the example)
+  - Standardized status check example IP addresses to `192.168.0.x`
+- **README.zh_CN.md**: Fully realigned all sections with `README.ja_JP.md`; amounts ($20/$25) left unchanged.
+- **README.ja_EZ.md**: Added "VCC や ALCOM" to Custom URL Schemes description; standardized example IP addresses to `192.168.0.x`; amounts (¥3,000/¥3,500) left unchanged.
