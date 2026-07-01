@@ -122,7 +122,7 @@ async fn handle_proxy(
         req.path_and_query
     );
 
-    let local_url = format!("http://127.0.0.1:{}{}", req.port, req.path_and_query);
+    let local_url = format!("http://localhost:{}{}", req.port, req.path_and_query);
 
     let body_bytes = match BASE64_STANDARD.decode(&req.body) {
         Ok(b) => b,
