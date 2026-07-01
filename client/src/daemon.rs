@@ -132,7 +132,16 @@ async fn handle_proxy(
         }
     };
 
-    let client = reqwest::Client::new();
+    // Do NOT follow redirects: return them as-is so the browser can handle them.
+    // If the relay followed a 302 to a URL that is unreachable (e.g. the local
+    // OAuth server shuts down after processing the callback), reqwest would fail
+    // internally and the browser would never see the redirect Location.
+    let client = reqwest::Client::builder()
+        .redirect(reqwest::redirect::Policy::none())
+        .connect_timeout(std::time::Duration::from_secs(10))
+        .timeout(std::time::Duration::from_secs(60))
+        .build()
+        .unwrap_or_else(|_| reqwest::Client::new());
     let method = match reqwest::Method::from_bytes(req.method.as_bytes()) {
         Ok(m) => m,
         Err(_) => return (StatusCode::BAD_REQUEST, "Invalid HTTP method").into_response(),

@@ -170,14 +170,16 @@ async fn proxy_fallback(
         .await
     {
         Ok(r) => r,
-        Err(e) => return (StatusCode::BAD_GATEWAY, e.to_string()).into_response(),
+        Err(e) => return (StatusCode::BAD_GATEWAY, format!("Failed to connect to Client relay: {}", e)).into_response(),
     };
-    if !relay_resp.status().is_success() {
-        return (StatusCode::BAD_GATEWAY, "relay error").into_response();
+    let relay_status = relay_resp.status();
+    if !relay_status.is_success() {
+        let body = relay_resp.text().await.unwrap_or_default();
+        return (StatusCode::BAD_GATEWAY, format!("Client relay error {}: {}", relay_status, body)).into_response();
     }
     let pr: ProxyResponse = match relay_resp.json().await {
         Ok(r) => r,
-        Err(e) => return (StatusCode::BAD_GATEWAY, e.to_string()).into_response(),
+        Err(e) => return (StatusCode::BAD_GATEWAY, format!("Relay response parse error: {}", e)).into_response(),
     };
     let bytes = BASE64_STANDARD.decode(&pr.body).unwrap_or_default();
     axum::response::Response::builder()
@@ -403,4 +405,148 @@ async fn host_ports_add_creates_listener() {
         .text().await.unwrap();
     assert_eq!(body, "relay ok");
     _h.abort();
+}
+
+// ── relay redirect tests ──────────────────────────────────────────────────────
+//
+// These tests exercise the client relay (POST /proxy) to verify that redirects
+// are passed through as-is instead of being followed internally.
+//
+// Background: OAuth callback servers (e.g. wrangler login) often respond with
+// a 302 redirect after processing the auth code, then shut down.  If the relay
+// followed the redirect automatically, it would try to connect to the (now
+// closed) server and fail with "Local connection error", surfacing as
+// "Client relay returned error" in the host proxy.
+
+fn client_relay_app_with_redirect_passthrough() -> Router {
+    Router::new().route("/proxy", post(client_relay_handler_no_redirect))
+}
+
+async fn client_relay_handler_no_redirect(Json(req): Json<ProxyRequest>) -> impl IntoResponse {
+    let body_bytes = BASE64_STANDARD.decode(&req.body).unwrap_or_default();
+    // Same as production fix: no redirect following.
+    let client = reqwest::Client::builder()
+        .redirect(reqwest::redirect::Policy::none())
+        .connect_timeout(Duration::from_secs(10))
+        .timeout(Duration::from_secs(60))
+        .build()
+        .unwrap();
+    let method =
+        reqwest::Method::from_bytes(req.method.as_bytes()).unwrap_or(reqwest::Method::GET);
+    let url = format!("http://127.0.0.1:{}{}", req.port, req.path_and_query);
+
+    match client.request(method, &url).body(body_bytes).send().await {
+        Ok(resp) => {
+            let status = resp.status().as_u16();
+            let mut headers = HashMap::new();
+            for (k, v) in resp.headers() {
+                if let Ok(s) = v.to_str() {
+                    headers.insert(k.to_string(), s.to_string());
+                }
+            }
+            let body = BASE64_STANDARD.encode(resp.bytes().await.unwrap_or_default());
+            (StatusCode::OK, Json(ProxyResponse { status, headers, body })).into_response()
+        }
+        Err(e) => (StatusCode::BAD_GATEWAY, e.to_string()).into_response(),
+    }
+}
+
+/// The relay must pass 302 redirects back to the caller without following them.
+/// Without this fix: relay follows 302, server shuts down, relay gets
+/// "connection refused", returns 502 → host shows "Client relay returned error".
+#[tokio::test]
+async fn relay_passes_redirect_without_following() {
+    // Local server: always returns 302 → /success (simulates OAuth callback server).
+    let local_l = bind_free().await;
+    let local_port = port_of(&local_l);
+    let local_app = Router::new().fallback(|| async {
+        axum::response::Response::builder()
+            .status(302)
+            .header("location", "/success")
+            .body(axum::body::Body::empty())
+            .unwrap()
+    });
+    let _local = serve(local_l, local_app).await;
+
+    let relay_l = bind_free().await;
+    let relay_port = port_of(&relay_l);
+    let _relay = serve(relay_l, client_relay_app_with_redirect_passthrough()).await;
+
+    wait_for_port(local_port, Duration::from_secs(2)).await;
+    wait_for_port(relay_port, Duration::from_secs(2)).await;
+
+    let proxy_req = ProxyRequest {
+        port: local_port,
+        method: "GET".into(),
+        path_and_query: "/oauth/callback?code=abc&state=xyz".into(),
+        headers: HashMap::new(),
+        body: String::new(),
+    };
+
+    let resp: ProxyResponse = reqwest::Client::new()
+        .post(format!("http://127.0.0.1:{}/proxy", relay_port))
+        .json(&proxy_req)
+        .send().await.unwrap()
+        .json().await.unwrap();
+
+    // Must receive the 302 itself, not follow it.
+    assert_eq!(resp.status, 302, "relay must return the redirect status as-is");
+    let location = resp.headers.get("location").map(|s| s.as_str()).unwrap_or("");
+    assert_eq!(location, "/success", "relay must preserve the Location header");
+
+    _relay.abort();
+}
+
+/// The host proxy must surface a meaningful error when the relay returns non-2xx.
+#[tokio::test]
+async fn host_proxy_error_message_includes_relay_details() {
+    // Relay that always returns 502 with a descriptive body.
+    let relay_l = bind_free().await;
+    let relay_port = port_of(&relay_l);
+    let error_relay = Router::new()
+        .route("/proxy", post(|| async {
+            (StatusCode::BAD_GATEWAY, "Local connection error: connection refused")
+        }));
+    let _relay = serve(relay_l, error_relay).await;
+
+    let host_l = bind_free().await;
+    let host_port = port_of(&host_l);
+    let (_, router) = make_host(|_| {});
+    let _h = serve(host_l, router).await;
+    wait_for_port(host_port, Duration::from_secs(2)).await;
+    wait_for_port(relay_port, Duration::from_secs(2)).await;
+
+    let proxy_port = {
+        let tmp = bind_free().await;
+        let p = port_of(&tmp);
+        drop(tmp);
+        p
+    };
+
+    reqwest::Client::new()
+        .post(format!("http://127.0.0.1:{}/ports", host_port))
+        .json(&PortsRequest {
+            ports: vec![proxy_port],
+            action: PortAction::Add,
+            relay_url: format!("http://127.0.0.1:{}", relay_port),
+        })
+        .send().await.unwrap();
+    wait_for_port(proxy_port, Duration::from_secs(3)).await;
+
+    let resp = reqwest::Client::new()
+        .get(format!("http://127.0.0.1:{}/", proxy_port))
+        .send().await.unwrap();
+
+    assert_eq!(resp.status().as_u16(), 502);
+    let body = resp.text().await.unwrap();
+    // Error body must include the relay's status code and message.
+    assert!(body.contains("502"), "error body should include relay status: {}", body);
+    assert!(
+        body.contains("connection refused") || body.contains("Local connection"),
+        "error body should include relay message: {}",
+        body
+    );
+
+    _h.abort();
+    _relay.abort();
 }

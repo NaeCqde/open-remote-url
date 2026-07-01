@@ -281,25 +281,29 @@ async fn handle_proxy_fallback(
 
     match post_req.send().await {
         Ok(resp) => {
-            let status = resp.status();
-            if status.is_success() {
-                if let Ok(proxy_resp) = resp.json::<ProxyResponse>().await {
-                    let mut response_builder =
-                        axum::response::Response::builder().status(proxy_resp.status);
+            let relay_status = resp.status();
+            if relay_status.is_success() {
+                match resp.json::<ProxyResponse>().await {
+                    Ok(proxy_resp) => {
+                        let mut response_builder =
+                            axum::response::Response::builder().status(proxy_resp.status);
 
-                    for (k, v) in proxy_resp.headers {
-                        if k.to_lowercase() != "content-length"
-                            && k.to_lowercase() != "transfer-encoding"
-                        {
-                            if let Ok(hname) = axum::http::HeaderName::from_bytes(k.as_bytes()) {
-                                if let Ok(hval) = axum::http::HeaderValue::from_str(&v) {
-                                    response_builder = response_builder.header(hname, hval);
+                        for (k, v) in proxy_resp.headers {
+                            if k.to_lowercase() != "content-length"
+                                && k.to_lowercase() != "transfer-encoding"
+                            {
+                                if let Ok(hname) =
+                                    axum::http::HeaderName::from_bytes(k.as_bytes())
+                                {
+                                    if let Ok(hval) = axum::http::HeaderValue::from_str(&v) {
+                                        response_builder = response_builder.header(hname, hval);
+                                    }
                                 }
                             }
                         }
-                    }
 
-                    if let Ok(body_bytes) = BASE64_STANDARD.decode(&proxy_resp.body) {
+                        let body_bytes =
+                            BASE64_STANDARD.decode(&proxy_resp.body).unwrap_or_default();
                         return response_builder
                             .body(axum::body::Body::from(body_bytes))
                             .unwrap_or_else(|_| {
@@ -310,14 +314,33 @@ async fn handle_proxy_fallback(
                                     .into_response()
                             });
                     }
+                    Err(e) => {
+                        log::error!(
+                            "[Proxy:{}] Failed to parse relay response as ProxyResponse: {}",
+                            state.port,
+                            e
+                        );
+                        return (
+                            StatusCode::BAD_GATEWAY,
+                            format!("Relay response parse error: {}", e),
+                        )
+                            .into_response();
+                    }
                 }
             }
+            // Relay itself returned a non-2xx status (e.g. local server unreachable).
+            let body = resp.text().await.unwrap_or_default();
             log::error!(
-                "[Proxy:{}] Client relay returned error: {}",
+                "[Proxy:{}] Client relay returned {}: {}",
                 state.port,
-                status
+                relay_status,
+                body
             );
-            (StatusCode::BAD_GATEWAY, "Client relay returned error").into_response()
+            (
+                StatusCode::BAD_GATEWAY,
+                format!("Client relay error {}: {}", relay_status, body),
+            )
+                .into_response()
         }
         Err(e) => {
             log::error!(
@@ -325,7 +348,11 @@ async fn handle_proxy_fallback(
                 state.port,
                 e
             );
-            (StatusCode::BAD_GATEWAY, "Failed to connect to Client relay").into_response()
+            (
+                StatusCode::BAD_GATEWAY,
+                format!("Failed to connect to Client relay: {}", e),
+            )
+                .into_response()
         }
     }
 }
