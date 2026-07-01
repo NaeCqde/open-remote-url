@@ -70,6 +70,10 @@ pub fn find_inactive_env_path(app_type: &str) -> PathBuf {
                             if p.exists() {
                                 return p;
                             }
+                            // Use the app-relative path as the canonical fallback so the
+                            // displayed path is always meaningful (not "/" when Finder sets
+                            // the working directory to the filesystem root).
+                            return p_app_type;
                         }
                     }
                 }
