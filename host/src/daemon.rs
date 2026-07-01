@@ -96,10 +96,14 @@ async fn handle_open_url(
 
     log::info!("Received request to open URL: {}", payload.url);
 
-    match open::that(&payload.url) {
+    // open::that() is synchronous and can block while the OS launches the
+    // browser.  Run it on a dedicated thread so the tokio runtime stays free
+    // to process other requests (ports updates, subsequent opens, etc.).
+    let url = payload.url.clone();
+    tokio::task::spawn_blocking(move || match open::that(&url) {
         Ok(_) => log::info!("Successfully opened URL on Host browser"),
         Err(e) => log::error!("Failed to open URL on Host browser: {}", e),
-    }
+    });
 
     (StatusCode::OK, "OK").into_response()
 }
