@@ -2,12 +2,10 @@
 
 ## [2026-07-02]
 
-### Changed
+### Fixed
 
-- **README.md**: Aligned wording with `README.ja_JP.md` as the source of truth.
-  - Updated the OAuth description to match the Japanese original ("you would normally need to copy the URL…")
-  - Added rustls support note to `RELAY_URL` description
-  - Unified Custom URL Schemes section (added ALCOM to the example)
-  - Standardized status check example IP addresses to `192.168.0.x`
-- **README.zh_CN.md**: Fully realigned all sections with `README.ja_JP.md`; amounts ($20/$25) left unchanged.
-- **README.ja_EZ.md**: Added "VCC や ALCOM" to Custom URL Schemes description; standardized example IP addresses to `192.168.0.x`; amounts (¥3,000/¥3,500) left unchanged.
+- **macOS inactive.env path under App Translocation**: When the client `.app` is run from a Gatekeeper-translocated location (`AppTranslocation` in path), `find_inactive_env_path` now returns the install-time config path (`~/Library/Application Support/open-remote-url/client/.env`) instead of a meaningless temporary path. This aligns client behavior with the already-installed host, which already returns the config dir path.
+
+### Added
+
+- **GUI panel: click-to-copy values**: All value fields in the GUI control panel (Executable Path, Configuration, Host URL, Client URL, Relay URL) now copy their text to the clipboard when clicked. A pointer cursor and "Click to copy" tooltip indicate the interaction.

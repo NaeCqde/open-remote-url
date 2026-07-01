@@ -1,6 +1,18 @@
 use eframe::egui;
 use std::path::PathBuf;
 
+/// Render `text` as a label that copies itself to the clipboard when clicked.
+fn copyable_label(ui: &mut egui::Ui, text: impl Into<String>) {
+    let text = text.into();
+    let response = ui
+        .add(egui::Label::new(&text).sense(egui::Sense::click()))
+        .on_hover_cursor(egui::CursorIcon::PointingHand)
+        .on_hover_text("Click to copy");
+    if response.clicked() {
+        ui.ctx().copy_text(text);
+    }
+}
+
 pub fn run_gui(app_type: &'static str) {
     #[cfg(target_os = "macos")]
     {
@@ -185,14 +197,14 @@ impl eframe::App for StatusApp {
 
                     ui.strong("Executable Path:");
                     if self.is_installed {
-                        ui.label(self.exe_path.to_string_lossy().to_string());
+                        copyable_label(ui, self.exe_path.to_string_lossy().to_string());
                     } else {
                         ui.weak("(Will be set upon installation)");
                     }
                     ui.end_row();
 
                     ui.strong("Configuration:");
-                    ui.label(self.config_path.to_string_lossy().to_string());
+                    copyable_label(ui, self.config_path.to_string_lossy().to_string());
                     ui.end_row();
 
                     if self.app_type == "client" {
@@ -202,15 +214,15 @@ impl eframe::App for StatusApp {
                         let relay_url_display = format!("{}/", config.relay_url.trim_end_matches('/'));
 
                         ui.strong("Host URL:");
-                        ui.label(host_url_display);
+                        copyable_label(ui, host_url_display);
                         ui.end_row();
 
                         ui.strong("Client URL:");
-                        ui.label(client_url_display);
+                        copyable_label(ui, client_url_display);
                         ui.end_row();
 
                         ui.strong("Relay URL:");
-                        ui.label(relay_url_display);
+                        copyable_label(ui, relay_url_display);
                         ui.end_row();
 
                         ui.strong("Auth:");
@@ -228,7 +240,7 @@ impl eframe::App for StatusApp {
                         let host_url_display = format!("http://{}/", config.listen);
 
                         ui.strong("Host URL:");
-                        ui.label(host_url_display);
+                        copyable_label(ui, host_url_display);
                         ui.end_row();
 
                         ui.strong("Auth:");

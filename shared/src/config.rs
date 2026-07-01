@@ -59,6 +59,17 @@ pub fn find_inactive_env_path(app_type: &str) -> PathBuf {
 
             let exe_dir_str = parent.to_string_lossy();
             if exe_dir_str.contains(".app/Contents/MacOS") {
+                // Under macOS App Translocation (Gatekeeper quarantine), the .app is
+                // remounted at a temporary path like
+                // /private/var/folders/.../AppTranslocation/.../d/<App>.app/...
+                // The inactive.env that sits next to the original .app is NOT visible
+                // from that translocated path, so traversing upward only produces a
+                // meaningless temp path.  In that case, return the install-time config
+                // path so the GUI shows where the file will live after installation.
+                if exe_dir_str.contains("AppTranslocation") {
+                    return get_config_path(app_type);
+                }
+
                 if let Some(contents) = parent.parent() {
                     if let Some(app_root) = contents.parent() {
                         if let Some(app_parent) = app_root.parent() {
