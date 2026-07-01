@@ -3,6 +3,7 @@ pub mod config;
 pub mod gui;
 pub mod installer;
 pub mod installer_utils;
+pub mod scheme_handler;
 pub mod uninstaller;
 pub mod utils;
 

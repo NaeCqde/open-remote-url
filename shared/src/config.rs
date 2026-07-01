@@ -209,6 +209,10 @@ pub struct ClientConfig {
     pub host_url: String,
     pub relay_url: String,
     pub passphrase: Option<String>,
+    /// Extra URL schemes to register as OS handlers (e.g. ["vcc", "unityhub"]).
+    pub schemes: Vec<String>,
+    /// Whether to register http/https as URL handlers. Default true.
+    pub register_http: bool,
 }
 
 impl ClientConfig {
@@ -221,6 +225,15 @@ impl ClientConfig {
         let relay_url = env::var("RELAY_URL").map(strip_slash)
             .unwrap_or_else(|_| "http://localhost:30000".to_string());
         let passphrase = env::var("PASSPHRASE").ok().filter(|s| !s.is_empty());
-        Self { listen, client_host, client_port, host_url, relay_url, passphrase }
+        let schemes = env::var("SCHEME")
+            .unwrap_or_default()
+            .split(',')
+            .map(|s| s.trim().to_string())
+            .filter(|s| !s.is_empty())
+            .collect();
+        let register_http = env::var("HTTP")
+            .map(|v| v.trim().to_lowercase() != "false")
+            .unwrap_or(true);
+        Self { listen, client_host, client_port, host_url, relay_url, passphrase, schemes, register_http }
     }
 }

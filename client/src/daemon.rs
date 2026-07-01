@@ -24,6 +24,8 @@ struct OpenPayload {
 }
 
 pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
+    shared::scheme_handler::register_url_schemes();
+
     let config = shared::config::ClientConfig::load();
     let client_host = config.client_host;
     let client_port = config.client_port;
