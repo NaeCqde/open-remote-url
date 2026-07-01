@@ -199,6 +199,7 @@ impl eframe::App for StatusApp {
                         let config = crate::config::ClientConfig::load();
                         let host_url_display = format!("{}/", config.host_url.trim_end_matches('/'));
                         let client_url_display = format!("http://{}/", config.listen);
+                        let relay_url_display = format!("{}/", config.relay_url.trim_end_matches('/'));
 
                         ui.strong("Host URL:");
                         ui.label(host_url_display);
@@ -206,6 +207,10 @@ impl eframe::App for StatusApp {
 
                         ui.strong("Client URL:");
                         ui.label(client_url_display);
+                        ui.end_row();
+
+                        ui.strong("Relay URL:");
+                        ui.label(relay_url_display);
                         ui.end_row();
 
                         ui.strong("Auth:");
