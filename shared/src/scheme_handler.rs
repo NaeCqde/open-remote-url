@@ -1,10 +1,10 @@
-use crate::config::ClientConfig;
+use crate::config::SenderConfig;
 
-/// Called at client daemon startup to register URL scheme handlers based on config.
+/// Called at sender daemon startup to register URL scheme handlers based on config.
 /// SCHEME=vcc,unityhub  → registers those schemes so the OS invokes this exe
 /// HTTP=false           → unregisters http/https handlers; default is true (register them)
 pub fn register_url_schemes() {
-    let config = ClientConfig::load();
+    let config = SenderConfig::load();
 
     #[cfg(target_os = "windows")]
     register_windows(&config);
@@ -22,7 +22,7 @@ pub fn register_url_schemes() {
 // ─── Windows ────────────────────────────────────────────────────────────────
 
 #[cfg(target_os = "windows")]
-fn register_windows(config: &ClientConfig) {
+fn register_windows(config: &SenderConfig) {
     let exe = match std::env::current_exe() {
         Ok(p) => p,
         Err(e) => {
@@ -67,17 +67,17 @@ fn register_windows_http_https(exe_str: &str, open_cmd: &str) {
     let bin_escaped = format!("\"{}\"", exe_str);
 
     let entries: &[(&str, &str, &str)] = &[
-        ("HKCU\\Software\\Clients\\StartMenuInternet\\OpenRemoteURLClient", "", ""),
-        ("HKCU\\Software\\Clients\\StartMenuInternet\\OpenRemoteURLClient\\Capabilities", "ApplicationName", "Open Remote URL Client"),
-        ("HKCU\\Software\\Clients\\StartMenuInternet\\OpenRemoteURLClient\\Capabilities", "ApplicationDescription", "Redirect URLs to remote Host"),
-        ("HKCU\\Software\\Clients\\StartMenuInternet\\OpenRemoteURLClient\\Capabilities\\URLAssociations", "http", "OpenRemoteURLClient"),
-        ("HKCU\\Software\\Clients\\StartMenuInternet\\OpenRemoteURLClient\\Capabilities\\URLAssociations", "https", "OpenRemoteURLClient"),
-        ("HKCU\\Software\\Classes\\OpenRemoteURLClient", "", "Open Remote URL Client HTML Document"),
-        ("HKCU\\Software\\RegisteredApplications", "OpenRemoteURLClient", "Software\\Clients\\StartMenuInternet\\OpenRemoteURLClient\\Capabilities"),
+        ("HKCU\\Software\\Clients\\StartMenuInternet\\OpenRemoteURLSender", "", ""),
+        ("HKCU\\Software\\Clients\\StartMenuInternet\\OpenRemoteURLSender\\Capabilities", "ApplicationName", "Open Remote URL Sender"),
+        ("HKCU\\Software\\Clients\\StartMenuInternet\\OpenRemoteURLSender\\Capabilities", "ApplicationDescription", "Redirect URLs to remote Receiver"),
+        ("HKCU\\Software\\Clients\\StartMenuInternet\\OpenRemoteURLSender\\Capabilities\\URLAssociations", "http", "OpenRemoteURLSender"),
+        ("HKCU\\Software\\Clients\\StartMenuInternet\\OpenRemoteURLSender\\Capabilities\\URLAssociations", "https", "OpenRemoteURLSender"),
+        ("HKCU\\Software\\Classes\\OpenRemoteURLSender", "", "Open Remote URL Sender HTML Document"),
+        ("HKCU\\Software\\RegisteredApplications", "OpenRemoteURLSender", "Software\\Clients\\StartMenuInternet\\OpenRemoteURLSender\\Capabilities"),
     ];
 
     for &(key, value_name, value_data) in entries {
-        let data = if key.ends_with("OpenRemoteURLClient") && value_name.is_empty() {
+        let data = if key.ends_with("OpenRemoteURLSender") && value_name.is_empty() {
             bin_escaped.as_str()
         } else {
             value_data
@@ -92,7 +92,7 @@ fn register_windows_http_https(exe_str: &str, open_cmd: &str) {
     }
 
     // shell\open\command for the ProgID
-    let cmd_key = "HKCU\\Software\\Classes\\OpenRemoteURLClient\\shell\\open\\command";
+    let cmd_key = "HKCU\\Software\\Classes\\OpenRemoteURLSender\\shell\\open\\command";
     let _ = crate::utils::create_no_window(std::process::Command::new("reg"))
         .args(&["add", cmd_key, "/t", "REG_SZ", "/d", open_cmd, "/f"])
         .status();
@@ -103,15 +103,15 @@ fn register_windows_http_https(exe_str: &str, open_cmd: &str) {
 #[cfg(target_os = "windows")]
 fn unregister_windows_http_https() {
     for key in &[
-        "HKCU\\Software\\Classes\\OpenRemoteURLClient",
-        "HKCU\\Software\\Clients\\StartMenuInternet\\OpenRemoteURLClient",
+        "HKCU\\Software\\Classes\\OpenRemoteURLSender",
+        "HKCU\\Software\\Clients\\StartMenuInternet\\OpenRemoteURLSender",
     ] {
         let _ = crate::utils::create_no_window(std::process::Command::new("reg"))
             .args(&["delete", key, "/f"])
             .status();
     }
     let _ = crate::utils::create_no_window(std::process::Command::new("reg"))
-        .args(&["delete", "HKCU\\Software\\RegisteredApplications", "/v", "OpenRemoteURLClient", "/f"])
+        .args(&["delete", "HKCU\\Software\\RegisteredApplications", "/v", "OpenRemoteURLSender", "/f"])
         .status();
 
     log::info!("Unregistered http/https URL scheme handlers");
@@ -120,7 +120,7 @@ fn unregister_windows_http_https() {
 // ─── macOS ──────────────────────────────────────────────────────────────────
 
 #[cfg(target_os = "macos")]
-fn register_macos(config: &ClientConfig) {
+fn register_macos(config: &SenderConfig) {
     let exe = match std::env::current_exe() {
         Ok(p) => p,
         Err(e) => {
@@ -153,7 +153,7 @@ fn register_macos(config: &ClientConfig) {
         .arg(&bundle)
         .status();
 
-    let bundle_id = format!("quest.nae.open-remote-url.client");
+    let bundle_id = format!("quest.nae.open-remote-url.sender");
     for scheme in &all_schemes {
         set_default_handler_macos(scheme, &bundle_id);
     }
@@ -180,9 +180,9 @@ fn find_macos_app_bundle(exe: &std::path::Path) -> Option<std::path::PathBuf> {
 fn rewrite_info_plist(bundle: &std::path::Path, schemes: &[&str]) -> Result<(), Box<dyn std::error::Error>> {
     let info_plist = bundle.join("Contents").join("Info.plist");
 
-    let app_type = "client";
-    let name = "OpenRemoteURLClient";
-    let bin = "open-remote-url-client";
+    let app_type = "sender";
+    let name = "OpenRemoteURLSender";
+    let bin = "open-remote-url-sender";
     let bundle_id = format!("quest.nae.open-remote-url.{}", app_type);
 
     let scheme_entries: String = schemes
@@ -282,7 +282,7 @@ fn set_default_handler_macos(scheme: &str, bundle_id: &str) {
 // ─── Linux ──────────────────────────────────────────────────────────────────
 
 #[cfg(target_os = "linux")]
-fn register_linux(config: &ClientConfig) {
+fn register_linux(config: &SenderConfig) {
     let exe = match std::env::current_exe() {
         Ok(p) => p,
         Err(e) => {
@@ -301,7 +301,7 @@ fn register_linux(config: &ClientConfig) {
         .join("share")
         .join("applications");
     let _ = std::fs::create_dir_all(&app_dir);
-    let desktop_path = app_dir.join("open-remote-url-client.desktop");
+    let desktop_path = app_dir.join("open-remote-url-sender.desktop");
 
     let mut mime_types: Vec<String> = config
         .schemes
@@ -331,7 +331,7 @@ fn register_linux(config: &ClientConfig) {
 
     for mime in &mime_types {
         let _ = std::process::Command::new("xdg-mime")
-            .args(&["default", "open-remote-url-client.desktop", mime])
+            .args(&["default", "open-remote-url-sender.desktop", mime])
             .status();
     }
 

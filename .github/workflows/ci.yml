@@ -62,13 +62,13 @@ jobs:
               if: contains(matrix.platform.target, 'apple-darwin')
               run: cargo install cargo-post
 
-            - name: Build Client & Host with Cargo post-build (macOS only)
+            - name: Build Sender & Receiver with Cargo post-build (macOS only)
               if: contains(matrix.platform.target, 'apple-darwin')
               run: |
-                  cargo post build --package open_remote_url_client --locked --release --target ${{ matrix.platform.target }}
-                  cargo post build --package open_remote_url_host --locked --release --target ${{ matrix.platform.target }}
+                  cargo post build --package open_remote_url_sender --locked --release --target ${{ matrix.platform.target }}
+                  cargo post build --package open_remote_url_receiver --locked --release --target ${{ matrix.platform.target }}
 
-            - name: Build Client & Host with Cargo or Cross (non-macOS)
+            - name: Build Sender & Receiver with Cargo or Cross (non-macOS)
               if: "!contains(matrix.platform.target, 'apple-darwin') && matrix.platform.target != 'riscv64gc-unknown-linux-musl'"
               uses: actions-rs/cargo@v1
               with:
@@ -76,7 +76,7 @@ jobs:
                   command: build
                   args: --manifest-path Cargo.toml --locked --release --target ${{ matrix.platform.target }}
 
-            - name: Build Client & Host RISCV with Cargo or Cross
+            - name: Build Sender & Receiver RISCV with Cargo or Cross
               if: matrix.platform.target == 'riscv64gc-unknown-linux-musl'
               uses: actions-rs/cargo@v1
               env:
@@ -91,17 +91,17 @@ jobs:
               run: |
                   if [[ "${{ matrix.platform.target }}" == *"-apple-darwin" ]]; then
                     echo "EXTRA_FILES<<EOF" >> $GITHUB_ENV
-                    echo "OpenRemoteURLClient.app.zip" >> $GITHUB_ENV
-                    echo "client/inactive.env" >> $GITHUB_ENV
+                    echo "OpenRemoteURLSender.app.zip" >> $GITHUB_ENV
+                    echo "sender/inactive.env" >> $GITHUB_ENV
                     echo "README.md" >> $GITHUB_ENV
                     echo "README.ja_JP.md" >> $GITHUB_ENV
                     echo "README.ja_EZ.md" >> $GITHUB_ENV
                     echo "README.zh_CN.md" >> $GITHUB_ENV
                     echo "EOF" >> $GITHUB_ENV
 
-                    echo "HOST_EXTRA_FILES<<EOF" >> $GITHUB_ENV
-                    echo "OpenRemoteURLHost.app.zip" >> $GITHUB_ENV
-                    echo "host/inactive.env" >> $GITHUB_ENV
+                    echo "RECEIVER_EXTRA_FILES<<EOF" >> $GITHUB_ENV
+                    echo "OpenRemoteURLReceiver.app.zip" >> $GITHUB_ENV
+                    echo "receiver/inactive.env" >> $GITHUB_ENV
                     echo "README.md" >> $GITHUB_ENV
                     echo "README.ja_JP.md" >> $GITHUB_ENV
                     echo "README.ja_EZ.md" >> $GITHUB_ENV
@@ -109,15 +109,15 @@ jobs:
                     echo "EOF" >> $GITHUB_ENV
                   elif [[ "${{ matrix.platform.target }}" == *"-pc-windows-"* ]]; then
                     echo "EXTRA_FILES<<EOF" >> $GITHUB_ENV
-                    echo "client/inactive.env" >> $GITHUB_ENV
+                    echo "sender/inactive.env" >> $GITHUB_ENV
                     echo "README.md" >> $GITHUB_ENV
                     echo "README.ja_JP.md" >> $GITHUB_ENV
                     echo "README.ja_EZ.md" >> $GITHUB_ENV
                     echo "README.zh_CN.md" >> $GITHUB_ENV
                     echo "EOF" >> $GITHUB_ENV
-                    
-                    echo "HOST_EXTRA_FILES<<EOF" >> $GITHUB_ENV
-                    echo "host/inactive.env" >> $GITHUB_ENV
+
+                    echo "RECEIVER_EXTRA_FILES<<EOF" >> $GITHUB_ENV
+                    echo "receiver/inactive.env" >> $GITHUB_ENV
                     echo "README.md" >> $GITHUB_ENV
                     echo "README.ja_JP.md" >> $GITHUB_ENV
                     echo "README.ja_EZ.md" >> $GITHUB_ENV
@@ -128,18 +128,18 @@ jobs:
                     echo "scripts/install/install.sh" >> $GITHUB_ENV
                     echo "scripts/uninstall/uninstall.sh" >> $GITHUB_ENV
                     echo "scripts/config/config.sh" >> $GITHUB_ENV
-                    echo "client/inactive.env" >> $GITHUB_ENV
+                    echo "sender/inactive.env" >> $GITHUB_ENV
                     echo "README.md" >> $GITHUB_ENV
                     echo "README.ja_JP.md" >> $GITHUB_ENV
                     echo "README.ja_EZ.md" >> $GITHUB_ENV
                     echo "README.zh_CN.md" >> $GITHUB_ENV
                     echo "EOF" >> $GITHUB_ENV
-                    
-                    echo "HOST_EXTRA_FILES<<EOF" >> $GITHUB_ENV
+
+                    echo "RECEIVER_EXTRA_FILES<<EOF" >> $GITHUB_ENV
                     echo "scripts/install/install.sh" >> $GITHUB_ENV
                     echo "scripts/uninstall/uninstall.sh" >> $GITHUB_ENV
                     echo "scripts/config/config.sh" >> $GITHUB_ENV
-                    echo "host/inactive.env" >> $GITHUB_ENV
+                    echo "receiver/inactive.env" >> $GITHUB_ENV
                     echo "README.md" >> $GITHUB_ENV
                     echo "README.ja_JP.md" >> $GITHUB_ENV
                     echo "README.ja_EZ.md" >> $GITHUB_ENV
@@ -150,14 +150,14 @@ jobs:
             - name: Wait
               shell: bash
               run: sleep $((RANDOM % 20 + 3))
-            - name: Release Client 1
-              id: release-client-1
+            - name: Release Sender 1
+              id: release-sender-1
               uses: houseabsolute/actions-rust-release@v0
               env:
-                  CRATE_NAME: open_remote_url-client
+                  CRATE_NAME: open_remote_url-sender
               with:
                   working-directory: .
-                  executable-name: open-remote-url-client
+                  executable-name: open-remote-url-sender
                   target: ${{ matrix.platform.target }}
                   extra-files: ${{ env.EXTRA_FILES }}
                   _force-release-for-testing: true
@@ -170,15 +170,15 @@ jobs:
               if: failure()
               shell: bash
               run: sleep $((RANDOM % 20 + 5))
-            - name: Release Client 2
+            - name: Release Sender 2
               if: failure()
-              id: release-client-2
+              id: release-sender-2
               uses: houseabsolute/actions-rust-release@v0
               env:
-                  CRATE_NAME: open_remote_url-client
+                  CRATE_NAME: open_remote_url-sender
               with:
                   working-directory: .
-                  executable-name: open-remote-url-client
+                  executable-name: open-remote-url-sender
                   target: ${{ matrix.platform.target }}
                   extra-files: ${{ env.EXTRA_FILES }}
                   _force-release-for-testing: true
@@ -191,16 +191,16 @@ jobs:
             - name: Wait
               shell: bash
               run: sleep $((RANDOM % 20 + 3))
-            - name: Release Host 1
-              id: release-host-1
+            - name: Release Receiver 1
+              id: release-receiver-1
               uses: houseabsolute/actions-rust-release@v0
               env:
-                  CRATE_NAME: open_remote_url_host
+                  CRATE_NAME: open_remote_url_receiver
               with:
                   working-directory: .
-                  executable-name: open-remote-url-host
+                  executable-name: open-remote-url-receiver
                   target: ${{ matrix.platform.target }}
-                  extra-files: ${{ env.HOST_EXTRA_FILES }}
+                  extra-files: ${{ env.RECEIVER_EXTRA_FILES }}
                   _force-release-for-testing: true
                   action-gh-release-parameters: |
                       {
@@ -211,17 +211,17 @@ jobs:
               if: failure()
               shell: bash
               run: sleep $((RANDOM % 20 + 5))
-            - name: Release Host 2
+            - name: Release Receiver 2
               if: failure()
-              id: release-host-2
+              id: release-receiver-2
               uses: houseabsolute/actions-rust-release@v0
               env:
-                  CRATE_NAME: open_remote_url_host
+                  CRATE_NAME: open_remote_url_receiver
               with:
                   working-directory: .
-                  executable-name: open-remote-url-host
+                  executable-name: open-remote-url-receiver
                   target: ${{ matrix.platform.target }}
-                  extra-files: ${{ env.HOST_EXTRA_FILES }}
+                  extra-files: ${{ env.RECEIVER_EXTRA_FILES }}
                   _force-release-for-testing: true
                   action-gh-release-parameters: |
                       {

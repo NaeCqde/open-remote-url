@@ -74,21 +74,21 @@ async fn client_binds_to_configured_port_and_returns_alive() {
     let dir = TempDir::new().unwrap();
     write_env(
         &dir,
-        "LISTEN=127.0.0.1:39100\nHOST_URL=http://localhost:40000\nRELAY_URL=http://localhost:39100\nPASSPHRASE=\n",
+        "LISTEN=127.0.0.1:39100\nHOST_URL=http://localhost:40000\nSELF_URL=http://localhost:39100\nPASSPHRASE=\n",
     );
 
-    let config = shared::config::ClientConfig::load();
-    assert_eq!(config.client_port, 39100, "client_port must match LISTEN in .env");
-    assert_eq!(config.client_host, "127.0.0.1");
+    let config = shared::config::SenderConfig::load();
+    assert_eq!(config.sender_port, 39100, "sender_port must match LISTEN in .env");
+    assert_eq!(config.sender_host, "127.0.0.1");
 
-    let addr: SocketAddr = format!("{}:{}", config.client_host, config.client_port).parse().unwrap();
+    let addr: SocketAddr = format!("{}:{}", config.sender_host, config.sender_port).parse().unwrap();
     let listener = TcpListener::bind(addr).await.expect("failed to bind configured port");
     let handle = serve(listener, Router::new().route("/", get(|| async { "alive" }))).await;
 
-    wait_for_port(config.client_port, Duration::from_secs(2)).await;
+    wait_for_port(config.sender_port, Duration::from_secs(2)).await;
 
     let body = reqwest::Client::new()
-        .get(format!("http://{}:{}/", config.client_host, config.client_port))
+        .get(format!("http://{}:{}/", config.sender_host, config.sender_port))
         .send().await.unwrap()
         .text().await.unwrap();
     assert_eq!(body, "alive");
@@ -101,7 +101,7 @@ async fn host_binds_to_configured_port_and_returns_alive() {
     let dir = TempDir::new().unwrap();
     write_env(&dir, "LISTEN=127.0.0.1:39200\nPASSPHRASE=\n");
 
-    let config = shared::config::HostConfig::load();
+    let config = shared::config::ReceiverConfig::load();
     assert_eq!(config.port, 39200, "port must match LISTEN in .env");
     assert_eq!(config.bind_host, "127.0.0.1");
 
@@ -144,7 +144,7 @@ async fn client_relay_handler(Json(req): Json<ProxyRequest>) -> impl IntoRespons
 
     let mut builder = client.request(method, &url).body(body_bytes);
     for (k, v) in &req.headers {
-        if k.to_lowercase() != "host" {
+        if k.to_lowercase() != "receiver" {
             builder = builder.header(k, v);
         }
     }
@@ -222,7 +222,7 @@ async fn proxy_relay_forwards_request_to_backend() {
 #[derive(Clone)]
 struct HostState {
     // not used in handler logic but kept for realism
-    _relay_url: Arc<Mutex<Option<String>>>,
+    _self_url: Arc<Mutex<Option<String>>>,
 }
 
 fn host_app(state: HostState) -> Router {
@@ -237,9 +237,9 @@ async fn host_ports_handler(
     Json(req): Json<PortsRequest>,
 ) -> impl IntoResponse {
     if req.action == PortAction::Add {
-        let relay_url = req.relay_url.clone();
+        let self_url = req.self_url.clone();
         for &port in &req.ports {
-            let relay = relay_url.clone();
+            let relay = self_url.clone();
             tokio::spawn(async move {
                 if let Ok(listener) =
                     TcpListener::bind(format!("127.0.0.1:{}", port)).await
@@ -270,7 +270,7 @@ async fn host_proxy_fallback(
     uri: axum::http::Uri,
     headers: axum::http::HeaderMap,
     body: axum::body::Bytes,
-    relay_url: String,
+    self_url: String,
 ) -> impl IntoResponse {
     let mut hmap = HashMap::new();
     for (k, v) in &headers {
@@ -292,7 +292,7 @@ async fn host_proxy_fallback(
 
     let client = reqwest::Client::new();
     let relay_resp =
-        match client.post(format!("{}/proxy", relay_url)).json(&proxy_req).send().await {
+        match client.post(format!("{}/proxy", self_url)).json(&proxy_req).send().await {
             Ok(r) => r,
             Err(e) => return (StatusCode::BAD_GATEWAY, e.to_string()).into_response(),
         };
@@ -347,7 +347,7 @@ async fn host_proxy_forwards_through_relay_to_backend() {
     // Host server.
     let host_l = bind_free().await;
     let host_port = port_of(&host_l);
-    let host_state = HostState { _relay_url: Arc::new(Mutex::new(None)) };
+    let host_state = HostState { _self_url: Arc::new(Mutex::new(None)) };
     let _host = serve(host_l, host_app(host_state)).await;
 
     wait_for_port(mock_relay_port, Duration::from_secs(2)).await;
@@ -367,7 +367,7 @@ async fn host_proxy_forwards_through_relay_to_backend() {
         .json(&PortsRequest {
             ports: vec![proxy_port],
             action: PortAction::Add,
-            relay_url: format!("http://127.0.0.1:{}", mock_relay_port),
+            self_url: format!("http://127.0.0.1:{}", mock_relay_port),
         })
         .send().await.unwrap()
         .status();

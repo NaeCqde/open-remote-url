@@ -11,8 +11,8 @@ use std::process::exit;
 
 fn print_status() {
     let (is_installed, is_running, exe_path, config_path) =
-        shared::installer::check_status("client");
-    let config = shared::config::ClientConfig::load();
+        shared::installer::check_status("sender");
+    let config = shared::config::SenderConfig::load();
 
     let auth_status = if config.passphrase.is_some() {
         "Enabled".to_string()
@@ -21,18 +21,18 @@ fn print_status() {
     };
 
     let mut status_msg = format!(
-        "Open Remote URL - Client Status\n\n\
+        "Open Remote URL - Sender Status\n\n\
         [Status]\n\
         - Installed:  {}\n\
         - Running:    {}\n\
         - Listen:     http://{}/\n\
-        - RELAY:      {}/\n\
+        - SELF:       {}/\n\
         - HOST:       {}/\n\
         - Auth:       {}",
         if is_installed { "Yes" } else { "No" },
         if is_running { "Yes" } else { "No" },
         config.listen,
-        config.relay_url.trim_end_matches('/'),
+        config.self_url.trim_end_matches('/'),
         config.host_url.trim_end_matches('/'),
         auth_status,
     );
@@ -50,17 +50,17 @@ fn print_status() {
     let usage_msg = if cfg!(target_os = "windows") {
         "\n\n\
         [Usage]\n\
-        - To install / start client:\n  Double-click the executable to open GUI Control Panel\n\n\
+        - To install / start sender:\n  Double-click the executable to open GUI Control Panel\n\n\
         - To uninstall / clean registrations:\n  Open GUI Control Panel and click Uninstall"
     } else if cfg!(target_os = "macos") {
         "\n\n\
         [Usage]\n\
-        - To install / start client:\n  Double-click the OpenRemoteURLClient.app bundle to open GUI Control Panel\n\n\
+        - To install / start sender:\n  Double-click the OpenRemoteURLSender.app bundle to open GUI Control Panel\n\n\
         - To uninstall / clean registrations:\n  Open GUI Control Panel and click Uninstall"
     } else {
         "\n\n\
         [Usage]\n\
-        - To install / start client:\n  Double-click the executable to open GUI Control Panel (GUI Desktop)\n  Or run ./install.sh in the release folder (CLI/Headless)\n\n\
+        - To install / start sender:\n  Double-click the executable to open GUI Control Panel (GUI Desktop)\n  Or run ./install.sh in the release folder (CLI/Headless)\n\n\
         - To uninstall / clean registrations:\n  Open GUI Control Panel and click Uninstall (GUI)\n  Or run ./uninstall.sh in the release folder (CLI/Headless)"
     };
 
@@ -113,9 +113,9 @@ fn main() -> Result<(), Box<dyn Error>> {
 
 async fn async_main(args: Vec<String>) -> Result<(), Box<dyn Error>> {
     env_logger::init_from_env(env_logger::Env::new().default_filter_or("info"));
-    shared::config::load_env("client");
+    shared::config::load_env("sender");
 
-    shared::cli::setup_gui_or_console("client", &args);
+    shared::cli::setup_gui_or_console("sender", &args);
 
     if args.len() < 2 {
         print_status();
@@ -124,17 +124,17 @@ async fn async_main(args: Vec<String>) -> Result<(), Box<dyn Error>> {
 
     let cmd_or_url = &args[1];
 
-    if shared::cli::handle_common_command(cmd_or_url, "client") {
+    if shared::cli::handle_common_command(cmd_or_url, "sender") {
         return Ok(());
     }
 
     if cmd_or_url == "--daemon" {
-        log::info!("Starting open-remote-url-client daemon...");
+        log::info!("Starting open-remote-url-sender daemon...");
         daemon::run().await?;
     } else if looks_like_url(cmd_or_url) {
-        let config = shared::config::ClientConfig::load();
-        let client_port = config.client_port;
-        let daemon_url = format!("http://localhost:{}/open", client_port);
+        let config = shared::config::SenderConfig::load();
+        let sender_port = config.sender_port;
+        let daemon_url = format!("http://localhost:{}/open", sender_port);
 
         log::info!("Sending URL to local daemon: {}", cmd_or_url);
 
@@ -159,7 +159,7 @@ async fn async_main(args: Vec<String>) -> Result<(), Box<dyn Error>> {
                 }
             }
             Err(e) => {
-                println!("=== Open Remote URL Error ===\nFailed to connect to local daemon: {}\nMake sure the daemon is running ('open-remote-url-client --daemon')", e);
+                println!("=== Open Remote URL Error ===\nFailed to connect to local daemon: {}\nMake sure the daemon is running ('open-remote-url-sender --daemon')", e);
                 exit(1);
             }
         }

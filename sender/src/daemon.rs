@@ -26,14 +26,28 @@ struct OpenPayload {
 pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
     shared::scheme_handler::register_url_schemes();
 
-    let config = shared::config::ClientConfig::load();
-    let client_host = config.client_host;
-    let client_port = config.client_port;
+    let config = shared::config::SenderConfig::load();
+    let sender_host = config.sender_host;
+    let sender_port = config.sender_port;
     let passphrase = config.passphrase;
     let host_url = config.host_url;
-    let relay_url = config.relay_url;
+    let self_url = config.self_url;
 
     let (tx_open_url, rx_open_url) = mpsc::channel::<String>(100);
+
+    // macOS: bridge Apple Events received on the main thread → tx_open_url.
+    // The main thread runs CFRunLoopRun(); URLs arrive via url_event::take_receiver().
+    #[cfg(target_os = "macos")]
+    {
+        if let Some(ae_rx) = crate::url_event::take_receiver() {
+            let ae_tx = tx_open_url.clone();
+            tokio::task::spawn_blocking(move || {
+                for url in ae_rx {
+                    let _ = ae_tx.blocking_send(url);
+                }
+            });
+        }
+    }
 
     let state = Arc::new(AppState {
         tx_open_url,
@@ -43,7 +57,7 @@ pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
     // Start background port-tracking loop
     tokio::spawn(async move {
         if let Err(e) =
-            run_port_tracker(rx_open_url, host_url, client_port, passphrase, relay_url).await
+            run_port_tracker(rx_open_url, host_url, sender_port, passphrase, self_url).await
         {
             log::error!("Port tracker error: {}", e);
         }
@@ -55,19 +69,19 @@ pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
         .route("/proxy", post(handle_proxy))
         .with_state(state);
 
-    let addr: SocketAddr = format!("{}:{}", client_host, client_port).parse()?;
+    let addr: SocketAddr = format!("{}:{}", sender_host, sender_port).parse()?;
     log::info!(
-        "Client Daemon listening on http://{}:{}",
-        client_host,
-        client_port
+        "Sender Daemon listening on http://{}:{}",
+        sender_host,
+        sender_port
     );
     let listener = match tokio::net::TcpListener::bind(addr).await {
         Ok(l) => l,
         Err(e) => {
             if e.kind() == std::io::ErrorKind::AddrInUse {
                 let msg = format!(
-                    "Failed to start Client Daemon: Port {} is already in use. Another instance is likely running.",
-                    client_port
+                    "Failed to start Sender Daemon: Port {} is already in use. Another instance is likely running.",
+                    sender_port
                 );
                 log::error!("{}", msg);
                 println!("=== Open Remote URL Daemon Error ===\n{}", msg);
@@ -196,15 +210,15 @@ async fn handle_proxy(
 async fn run_port_tracker(
     mut rx: mpsc::Receiver<String>,
     host_url: String,
-    client_port: u16,
+    sender_port: u16,
     passphrase: Option<String>,
-    relay_url: String,
+    self_url: String,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let mut history: VecDeque<(Instant, HashSet<u16>)> = VecDeque::new();
     let mut interval = tokio::time::interval(Duration::from_millis(500));
     let sent_ports = Arc::new(std::sync::Mutex::new(HashSet::<u16>::new()));
 
-    let resolved_relay_url = relay_url;
+    let resolved_self_url = self_url;
 
     loop {
         tokio::select! {
@@ -230,10 +244,10 @@ async fn run_port_tracker(
                         log::info!("Detected closed ports: {:?}", closed_ports);
                         let host_url_clone = host_url.clone();
                         let passphrase_clone = passphrase.clone();
-                        let resolved_relay_url_clone = resolved_relay_url.clone();
+                        let resolved_self_url_clone = resolved_self_url.clone();
                         tokio::spawn(async move {
-                            if let Err(e) = send_ports_update(&host_url_clone, closed_ports, PortAction::Delete, &resolved_relay_url_clone, &passphrase_clone).await {
-                                log::error!("Failed to send delete ports request to host: {}", e);
+                            if let Err(e) = send_ports_update(&host_url_clone, closed_ports, PortAction::Delete, &resolved_self_url_clone, &passphrase_clone).await {
+                                log::error!("Failed to send delete ports request to receiver: {}", e);
                             }
                         });
                     }
@@ -246,7 +260,7 @@ async fn run_port_tracker(
                 let host_url_clone = host_url.clone();
                 let passphrase_clone = passphrase.clone();
                 let sent_ports_clone = sent_ports.clone();
-                let resolved_relay_url_clone = resolved_relay_url.clone();
+                let resolved_self_url_clone = resolved_self_url.clone();
 
                 // Port forwarding is only meaningful for http/https URLs.
                 // Custom schemes (vcc://, unityhub://, etc.) are remote-opened on the
@@ -266,14 +280,14 @@ async fn run_port_tracker(
                             set.insert(port);
                         }
                     }
-                    set.remove(&client_port);
+                    set.remove(&sender_port);
                     set
                 } else {
                     HashSet::new()
                 };
 
                 tokio::spawn(async move {
-                    // 1. Immediately send open request to Host Daemon.
+                    // 1. Immediately send open request to Receiver Daemon.
                     log::info!("Sending immediate open request for URL: {}", url);
                     let open_payload = OpenUrlRequest { url };
 
@@ -285,11 +299,11 @@ async fn run_port_tracker(
                         return;
                     }
 
-                    // 2. Send 15-second ports to host /ports (action: add)
+                    // 2. Send 15-second ports to receiver /ports (action: add)
                     if !ports_15s.is_empty() {
                         let ports_list: Vec<u16> = ports_15s.into_iter().collect();
                         log::info!("Sending ports allocated up to 15s ago: {:?}", ports_list);
-                        match send_ports_update(&host_url_clone, ports_list.clone(), PortAction::Add, &resolved_relay_url_clone, &passphrase_clone).await {
+                        match send_ports_update(&host_url_clone, ports_list.clone(), PortAction::Add, &resolved_self_url_clone, &passphrase_clone).await {
                             Ok(_) => {
                                 let mut sent_lock = sent_ports_clone.lock().unwrap();
                                 for port in ports_list {
@@ -297,7 +311,7 @@ async fn run_port_tracker(
                                 }
                             }
                             Err(e) => {
-                                log::error!("Failed to send 15s ports update to host: {}", e);
+                                log::error!("Failed to send 15s ports update to receiver: {}", e);
                             }
                         }
                     }
@@ -310,7 +324,7 @@ async fn run_port_tracker(
                         {
                             let sent_lock = sent_ports_clone.lock().unwrap();
                             for port in current_ports {
-                                if port != client_port && !sent_lock.contains(&port) {
+                                if port != sender_port && !sent_lock.contains(&port) {
                                     new_ports.push(port);
                                 }
                             }
@@ -318,7 +332,7 @@ async fn run_port_tracker(
 
                         if !new_ports.is_empty() {
                             log::info!("Check #{}: Detected newly opened ports: {:?}", i, new_ports);
-                            match send_ports_update(&host_url_clone, new_ports.clone(), PortAction::Add, &resolved_relay_url_clone, &passphrase_clone).await {
+                            match send_ports_update(&host_url_clone, new_ports.clone(), PortAction::Add, &resolved_self_url_clone, &passphrase_clone).await {
                                 Ok(_) => {
                                     let mut sent_lock = sent_ports_clone.lock().unwrap();
                                     for port in new_ports {
@@ -326,7 +340,7 @@ async fn run_port_tracker(
                                     }
                                 }
                                 Err(e) => {
-                                    log::error!("Failed to send new ports update to host (check #{}): {}", i, e);
+                                    log::error!("Failed to send new ports update to receiver (check #{}): {}", i, e);
                                 }
                             }
                         }
@@ -358,14 +372,14 @@ async fn send_ports_update(
     host_url: &str,
     ports: Vec<u16>,
     action: PortAction,
-    relay_url: &str,
+    self_url: &str,
     passphrase: &Option<String>,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let client = reqwest::Client::new();
     let payload = PortsRequest {
         ports,
         action,
-        relay_url: relay_url.to_string(),
+        self_url: self_url.to_string(),
     };
     let mut req = client.post(format!("{}/ports", host_url)).json(&payload);
     if let Some(ref phrase) = passphrase {

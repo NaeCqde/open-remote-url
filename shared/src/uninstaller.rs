@@ -72,10 +72,10 @@ pub fn uninstall(app_type: &str) -> Result<(), Box<dyn std::error::Error>> {
     {
         let home = env::var("HOME")?;
         let apps_dir = PathBuf::from(home).join("Applications");
-        let app_name = if app_type == "client" {
-            "OpenRemoteURLClient"
+        let app_name = if app_type == "sender" {
+            "OpenRemoteURLSender"
         } else {
-            "OpenRemoteURLHost"
+            "OpenRemoteURLReceiver"
         };
         let app_path = apps_dir.join(format!("{}.app", app_name));
 

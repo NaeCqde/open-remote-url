@@ -22,28 +22,28 @@ fn main() {
         );
 
         let crate_manifest_path = env::var("CRATE_MANIFEST_PATH").unwrap_or_default();
-        let is_client = crate_manifest_path.contains("client") || build_command.contains("open_remote_url ");
-        let is_host = crate_manifest_path.contains("host") || build_command.contains("open_remote_url_host");
+        let is_sender = crate_manifest_path.contains("sender") || build_command.contains("open_remote_url ");
+        let is_receiver = crate_manifest_path.contains("receiver") || build_command.contains("open_remote_url_receiver");
 
         let mut targets = Vec::new();
-        if is_client {
+        if is_sender {
             targets.push((
-                "open-remote-url-client",
-                "OpenRemoteURLClient",
-                "quest.nae.open-remote-url.client",
+                "open-remote-url-sender",
+                "OpenRemoteURLSender",
+                "quest.nae.open-remote-url.sender",
                 true,
             ));
         }
-        if is_host {
+        if is_receiver {
             targets.push((
-                "open-remote-url-host",
-                "OpenRemoteURLHost",
-                "quest.nae.open-remote-url.host",
+                "open-remote-url-receiver",
+                "OpenRemoteURLReceiver",
+                "quest.nae.open-remote-url.receiver",
                 false,
             ));
         }
 
-        for (bin_name, app_name, bundle_id, is_client_target) in targets {
+        for (bin_name, app_name, bundle_id, is_sender_target) in targets {
             let bin_path = out_dir.join(bin_name);
             if bin_path.exists() {
                 println!("cargo:warning=Binary found. Packaging {}.app...", app_name);
@@ -65,7 +65,7 @@ fn main() {
 
                 // Create Info.plist
                 let info_plist = app_dir.join("Contents").join("Info.plist");
-                let url_types_str = if is_client_target {
+                let url_types_str = if is_sender_target {
                     r#"    <key>CFBundleURLTypes</key>
     <array>
         <dict>

@@ -44,5 +44,5 @@ pub enum PortAction {
 pub struct PortsRequest {
     pub ports: Vec<u16>,
     pub action: PortAction,
-    pub relay_url: String,
+    pub self_url: String,
 }

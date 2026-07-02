@@ -79,10 +79,10 @@ fn copy_env_file(app_type: &str) -> Result<(), Box<dyn std::error::Error>> {
             fs::copy(&source_env, &target_env)?;
         } else {
             log::info!("Writing a default .env file");
-            if app_type == "client" {
+            if app_type == "sender" {
                 fs::write(
                     &target_env,
-                    "LISTEN=0.0.0.0:30000\nHOST_URL=http://localhost:40000\nRELAY_URL=http://localhost:30000\nPASSPHRASE=\nSCHEME=\nHTTP=true\n",
+                    "LISTEN=0.0.0.0:30000\nHOST_URL=http://localhost:40000\nSELF_URL=http://localhost:30000\nPASSPHRASE=\nSCHEME=\nHTTP=true\n",
                 )?;
             } else {
                 fs::write(&target_env, "LISTEN=0.0.0.0:40000\nPASSPHRASE=\n")?;
@@ -109,7 +109,7 @@ pub fn install(app_type: &str) -> Result<(), Box<dyn std::error::Error>> {
         }
 
         setup_windows_startup(app_type, &target_exe)?;
-        if app_type == "client" {
+        if app_type == "sender" {
             setup_windows_browser(&target_exe)?;
         }
 
@@ -149,7 +149,7 @@ pub fn install(app_type: &str) -> Result<(), Box<dyn std::error::Error>> {
             fs::copy(&current_exe, &target_exe)?;
         }
         setup_linux_systemd(app_type, &target_exe)?;
-        if app_type == "client" {
+        if app_type == "sender" {
             setup_linux_browser(&target_exe)?;
         }
 
@@ -250,14 +250,14 @@ fn setup_windows_browser(binary_path: &Path) -> Result<(), Box<dyn std::error::E
     let bin_path_with_arg = format!("\"{}\" \"%1\"", binary_path.to_string_lossy());
 
     let keys = vec![
-        ("HKCU\\Software\\Clients\\StartMenuInternet\\OpenRemoteURLClient", "", bin_path_escaped.clone()),
-        ("HKCU\\Software\\Clients\\StartMenuInternet\\OpenRemoteURLClient\\Capabilities", "ApplicationName", "Open Remote URL Client".to_string()),
-        ("HKCU\\Software\\Clients\\StartMenuInternet\\OpenRemoteURLClient\\Capabilities", "ApplicationDescription", "Redirect URLs to remote Host".to_string()),
-        ("HKCU\\Software\\Clients\\StartMenuInternet\\OpenRemoteURLClient\\Capabilities\\URLAssociations", "http", "OpenRemoteURLClient".to_string()),
-        ("HKCU\\Software\\Clients\\StartMenuInternet\\OpenRemoteURLClient\\Capabilities\\URLAssociations", "https", "OpenRemoteURLClient".to_string()),
-        ("HKCU\\Software\\Classes\\OpenRemoteURLClient", "", "Open Remote URL Client HTML Document".to_string()),
-        ("HKCU\\Software\\Classes\\OpenRemoteURLClient\\shell\\open\\command", "", bin_path_with_arg),
-        ("HKCU\\Software\\RegisteredApplications", "OpenRemoteURLClient", "Software\\Clients\\StartMenuInternet\\OpenRemoteURLClient\\Capabilities".to_string()),
+        ("HKCU\\Software\\Clients\\StartMenuInternet\\OpenRemoteURLSender", "", bin_path_escaped.clone()),
+        ("HKCU\\Software\\Clients\\StartMenuInternet\\OpenRemoteURLSender\\Capabilities", "ApplicationName", "Open Remote URL Sender".to_string()),
+        ("HKCU\\Software\\Clients\\StartMenuInternet\\OpenRemoteURLSender\\Capabilities", "ApplicationDescription", "Redirect URLs to remote Receiver".to_string()),
+        ("HKCU\\Software\\Clients\\StartMenuInternet\\OpenRemoteURLSender\\Capabilities\\URLAssociations", "http", "OpenRemoteURLSender".to_string()),
+        ("HKCU\\Software\\Clients\\StartMenuInternet\\OpenRemoteURLSender\\Capabilities\\URLAssociations", "https", "OpenRemoteURLSender".to_string()),
+        ("HKCU\\Software\\Classes\\OpenRemoteURLSender", "", "Open Remote URL Sender HTML Document".to_string()),
+        ("HKCU\\Software\\Classes\\OpenRemoteURLSender\\shell\\open\\command", "", bin_path_with_arg),
+        ("HKCU\\Software\\RegisteredApplications", "OpenRemoteURLSender", "Software\\Clients\\StartMenuInternet\\OpenRemoteURLSender\\Capabilities".to_string()),
     ];
 
     for (key, value_name, value_data) in keys {
@@ -278,7 +278,7 @@ fn get_parent_app_dir(exe_path: &Path) -> Option<PathBuf> {
     if parent.file_name()?.to_str()? == "MacOS" {
         let contents = parent.parent()?; // Contents
         if contents.file_name()?.to_str()? == "Contents" {
-            let app = contents.parent()?; // OpenRemoteURLClient.app
+            let app = contents.parent()?; // OpenRemoteURLSender.app
             if app.extension()?.to_str()? == "app" {
                 return Some(app.to_path_buf());
             }
@@ -369,10 +369,10 @@ fn setup_macos_app_bundle(
         }
     }
 
-    // Rewrite Info.plist for clients to register the URL schemes specified in config.
+    // Rewrite Info.plist for senders to register the URL schemes specified in config.
     // Reads SCHEME / HTTP from the already-loaded env so that HTTP=false is respected.
-    if app_type == "client" {
-        let config = crate::config::ClientConfig::load();
+    if app_type == "sender" {
+        let config = crate::config::SenderConfig::load();
         let mut schemes: Vec<String> = config.schemes.clone();
         if config.register_http {
             schemes.push("http".to_string());
@@ -557,7 +557,7 @@ fn setup_linux_browser(binary_path: &Path) -> Result<(), Box<dyn std::error::Err
         .join("share")
         .join("applications");
     fs::create_dir_all(&app_dir)?;
-    let desktop_path = app_dir.join("open-remote-url-client.desktop");
+    let desktop_path = app_dir.join("open-remote-url-sender.desktop");
 
     let desktop_content = format!(
         r#"[Desktop Entry]
@@ -581,7 +581,7 @@ MimeType=x-scheme-handler/http;x-scheme-handler/https;
     let _ = std::process::Command::new("xdg-mime")
         .args(&[
             "default",
-            "open-remote-url-client.desktop",
+            "open-remote-url-sender.desktop",
             "x-scheme-handler/http",
         ])
         .status();
@@ -589,7 +589,7 @@ MimeType=x-scheme-handler/http;x-scheme-handler/https;
     let _ = std::process::Command::new("xdg-mime")
         .args(&[
             "default",
-            "open-remote-url-client.desktop",
+            "open-remote-url-sender.desktop",
             "x-scheme-handler/https",
         ])
         .status();
@@ -720,4 +720,3 @@ pub fn stop_daemon(app_type: &str) -> Result<(), Box<dyn std::error::Error>> {
 
     Ok(())
 }
-

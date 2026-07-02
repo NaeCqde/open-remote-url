@@ -23,7 +23,7 @@ pub fn setup_gui_or_console(app_type: &'static str, args: &[String]) {
 /// Returns true if the command was handled (caller should return Ok(())).
 /// Calls exit(1) on error.
 pub fn handle_common_command(cmd: &str, app_type: &str) -> bool {
-    let label = if app_type == "client" { "Client" } else { "Host" };
+    let label = if app_type == "sender" { "Sender" } else { "Receiver" };
     match cmd {
         "--config" => {
             let _ = crate::config::show_config(app_type);

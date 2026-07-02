@@ -271,10 +271,10 @@ pub fn show_config(app_type: &str) -> Result<(), Box<dyn std::error::Error>> {
 
 /// Returns the port that the daemon listens on for the given app_type.
 pub fn get_daemon_port(app_type: &str) -> u16 {
-    if app_type == "client" {
-        ClientConfig::load().client_port
+    if app_type == "sender" {
+        SenderConfig::load().sender_port
     } else {
-        HostConfig::load().port
+        ReceiverConfig::load().port
     }
 }
 
@@ -302,14 +302,14 @@ fn parse_listen(listen: &str) -> (String, u16) {
 }
 
 #[derive(Debug, Clone)]
-pub struct HostConfig {
+pub struct ReceiverConfig {
     pub listen: String,
     pub bind_host: String,
     pub port: u16,
     pub passphrase: Option<String>,
 }
 
-impl HostConfig {
+impl ReceiverConfig {
     pub fn load() -> Self {
         let listen = env::var("LISTEN").unwrap_or_else(|_| "0.0.0.0:40000".to_string());
         let (bind_host, port) = parse_listen(&listen);
@@ -319,12 +319,12 @@ impl HostConfig {
 }
 
 #[derive(Debug, Clone)]
-pub struct ClientConfig {
+pub struct SenderConfig {
     pub listen: String,
-    pub client_host: String,
-    pub client_port: u16,
+    pub sender_host: String,
+    pub sender_port: u16,
     pub host_url: String,
-    pub relay_url: String,
+    pub self_url: String,
     pub passphrase: Option<String>,
     /// Extra URL schemes to register as OS handlers (e.g. ["vcc", "unityhub"]).
     pub schemes: Vec<String>,
@@ -332,14 +332,14 @@ pub struct ClientConfig {
     pub register_http: bool,
 }
 
-impl ClientConfig {
+impl SenderConfig {
     pub fn load() -> Self {
         let strip_slash = |u: String| u.trim_end_matches('/').to_string();
         let listen = env::var("LISTEN").unwrap_or_else(|_| "0.0.0.0:30000".to_string());
-        let (client_host, client_port) = parse_listen(&listen);
+        let (sender_host, sender_port) = parse_listen(&listen);
         let host_url = env::var("HOST_URL").map(strip_slash)
             .unwrap_or_else(|_| "http://localhost:40000".to_string());
-        let relay_url = env::var("RELAY_URL").map(strip_slash)
+        let self_url = env::var("SELF_URL").map(strip_slash)
             .unwrap_or_else(|_| "http://localhost:30000".to_string());
         let passphrase = env::var("PASSPHRASE").ok().filter(|s| !s.is_empty());
         let schemes = env::var("SCHEME")
@@ -351,6 +351,6 @@ impl ClientConfig {
         let register_http = env::var("HTTP")
             .map(|v| v.trim().to_lowercase() != "false")
             .unwrap_or(true);
-        Self { listen, client_host, client_port, host_url, relay_url, passphrase, schemes, register_http }
+        Self { listen, sender_host, sender_port, host_url, self_url, passphrase, schemes, register_http }
     }
 }

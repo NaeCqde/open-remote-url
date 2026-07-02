@@ -108,7 +108,7 @@ async fn handle_ports(
     match req.action {
         PortAction::Add => {
             for &port in &req.ports {
-                let relay = req.relay_url.clone();
+                let relay = req.self_url.clone();
                 // Fix 2: build client once per proxy with timeouts.
                 let client = relay_client();
                 let listener = match TcpListener::bind(format!("127.0.0.1:{}", port)).await {
@@ -150,7 +150,7 @@ async fn proxy_fallback(
     method: axum::http::Method,
     uri: axum::http::Uri,
     body: axum::body::Bytes,
-    relay_url: String,
+    self_url: String,
     client: reqwest::Client,
 ) -> impl IntoResponse {
     let proxy_req = ProxyRequest {
@@ -164,18 +164,18 @@ async fn proxy_fallback(
         body: BASE64_STANDARD.encode(&body),
     };
     let relay_resp = match client
-        .post(format!("{}/proxy", relay_url))
+        .post(format!("{}/proxy", self_url))
         .json(&proxy_req)
         .send()
         .await
     {
         Ok(r) => r,
-        Err(e) => return (StatusCode::BAD_GATEWAY, format!("Failed to connect to Client relay: {}", e)).into_response(),
+        Err(e) => return (StatusCode::BAD_GATEWAY, format!("Failed to connect to Sender relay: {}", e)).into_response(),
     };
     let relay_status = relay_resp.status();
     if !relay_status.is_success() {
         let body = relay_resp.text().await.unwrap_or_default();
-        return (StatusCode::BAD_GATEWAY, format!("Client relay error {}: {}", relay_status, body)).into_response();
+        return (StatusCode::BAD_GATEWAY, format!("Sender relay error {}: {}", relay_status, body)).into_response();
     }
     let pr: ProxyResponse = match relay_resp.json().await {
         Ok(r) => r,
@@ -316,7 +316,7 @@ async fn open_ports_open_sequence_host_stays_responsive() {
         .json(&PortsRequest {
             ports: vec![proxy_port],
             action: PortAction::Add,
-            relay_url: format!("http://127.0.0.1:{}", blackhole_port),
+            self_url: format!("http://127.0.0.1:{}", blackhole_port),
         })
         .send().await.unwrap()
         .status();
@@ -393,7 +393,7 @@ async fn host_ports_add_creates_listener() {
         .json(&PortsRequest {
             ports: vec![proxy_port],
             action: PortAction::Add,
-            relay_url: format!("http://127.0.0.1:{}", mock_relay_port),
+            self_url: format!("http://127.0.0.1:{}", mock_relay_port),
         })
         .send().await.unwrap();
 
@@ -416,7 +416,7 @@ async fn host_ports_add_creates_listener() {
 // a 302 redirect after processing the auth code, then shut down.  If the relay
 // followed the redirect automatically, it would try to connect to the (now
 // closed) server and fail with "Local connection error", surfacing as
-// "Client relay returned error" in the host proxy.
+// "Sender relay returned error" in the host proxy.
 
 fn client_relay_app_with_redirect_passthrough() -> Router {
     Router::new().route("/proxy", post(client_relay_handler_no_redirect))
@@ -453,7 +453,7 @@ async fn client_relay_handler_no_redirect(Json(req): Json<ProxyRequest>) -> impl
 
 /// The relay must pass 302 redirects back to the caller without following them.
 /// Without this fix: relay follows 302, server shuts down, relay gets
-/// "connection refused", returns 502 → host shows "Client relay returned error".
+/// "connection refused", returns 502 → host shows "Sender relay returned error".
 #[tokio::test]
 async fn relay_passes_redirect_without_following() {
     // Local server: always returns 302 → /success (simulates OAuth callback server).
@@ -528,7 +528,7 @@ async fn host_proxy_error_message_includes_relay_details() {
         .json(&PortsRequest {
             ports: vec![proxy_port],
             action: PortAction::Add,
-            relay_url: format!("http://127.0.0.1:{}", relay_port),
+            self_url: format!("http://127.0.0.1:{}", relay_port),
         })
         .send().await.unwrap();
     wait_for_port(proxy_port, Duration::from_secs(3)).await;

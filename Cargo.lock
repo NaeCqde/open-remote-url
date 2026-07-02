@@ -2743,23 +2743,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "open_remote_url_client"
-version = "0.1.0"
-dependencies = [
- "axum",
- "base64",
- "env_logger",
- "listeners",
- "log",
- "reqwest",
- "serde",
- "serde_json",
- "shared",
- "tokio",
-]
-
-[[package]]
-name = "open_remote_url_host"
+name = "open_remote_url_receiver"
 version = "0.1.0"
 dependencies = [
  "axum",
@@ -2767,6 +2751,23 @@ dependencies = [
  "env_logger",
  "log",
  "open",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "shared",
+ "tempfile",
+ "tokio",
+]
+
+[[package]]
+name = "open_remote_url_sender"
+version = "0.1.0"
+dependencies = [
+ "axum",
+ "base64",
+ "env_logger",
+ "listeners",
+ "log",
  "reqwest",
  "serde",
  "serde_json",

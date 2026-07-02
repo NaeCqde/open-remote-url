@@ -3,18 +3,18 @@ use std::fs;
 use std::path::PathBuf;
 
 pub(crate) fn binary_name(app_type: &str) -> &'static str {
-    if app_type == "client" {
-        "open-remote-url-client"
+    if app_type == "sender" {
+        "open-remote-url-sender"
     } else {
-        "open-remote-url-host"
+        "open-remote-url-receiver"
     }
 }
 
 pub(crate) fn app_name(app_type: &str) -> &'static str {
-    if app_type == "client" {
-        "OpenRemoteURLClient"
+    if app_type == "sender" {
+        "OpenRemoteURLSender"
     } else {
-        "OpenRemoteURLHost"
+        "OpenRemoteURLReceiver"
     }
 }
 
@@ -81,10 +81,10 @@ pub(crate) fn service_name(app_type: &str) -> String {
 
 #[cfg(target_os = "windows")]
 pub(crate) fn registry_run_key(app_type: &str) -> &'static str {
-    if app_type == "client" {
-        "OpenRemoteURLClientDaemon"
+    if app_type == "sender" {
+        "OpenRemoteURLSenderDaemon"
     } else {
-        "OpenRemoteURLHostDaemon"
+        "OpenRemoteURLReceiverDaemon"
     }
 }
 
@@ -112,10 +112,10 @@ pub(crate) fn stop_and_unregister(app_type: &str) -> Result<(), Box<dyn std::err
             ])
             .status();
 
-        if app_type == "client" {
+        if app_type == "sender" {
             let keys = vec![
-                "HKCU\\Software\\Clients\\StartMenuInternet\\OpenRemoteURLClient",
-                "HKCU\\Software\\Classes\\OpenRemoteURLClient",
+                "HKCU\\Software\\Clients\\StartMenuInternet\\OpenRemoteURLSender",
+                "HKCU\\Software\\Classes\\OpenRemoteURLSender",
             ];
             for key in keys {
                 let _ = crate::utils::create_no_window(std::process::Command::new("reg"))
@@ -128,7 +128,7 @@ pub(crate) fn stop_and_unregister(app_type: &str) -> Result<(), Box<dyn std::err
                     "delete",
                     "HKCU\\Software\\RegisteredApplications",
                     "/v",
-                    "OpenRemoteURLClient",
+                    "OpenRemoteURLSender",
                     "/f",
                 ])
                 .status();
@@ -151,10 +151,10 @@ pub(crate) fn stop_and_unregister(app_type: &str) -> Result<(), Box<dyn std::err
             let _ = fs::remove_file(&plist_path);
         }
 
-        let app_name = if app_type == "client" {
-            "OpenRemoteURLClient"
+        let app_name = if app_type == "sender" {
+            "OpenRemoteURLSender"
         } else {
-            "OpenRemoteURLHost"
+            "OpenRemoteURLReceiver"
         };
         let app_path = PathBuf::from(home)
             .join("Applications")

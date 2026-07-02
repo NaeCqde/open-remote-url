@@ -31,10 +31,10 @@ pub fn run_gui(app_type: &'static str) {
             .with_maximize_button(false),
         ..Default::default()
     };
-    let app_name = if app_type == "client" {
-        "Open Remote URL Client"
+    let app_name = if app_type == "sender" {
+        "Open Remote URL Sender"
     } else {
-        "Open Remote URL Host"
+        "Open Remote URL Receiver"
     };
     let _ = eframe::run_native(
         app_name,
@@ -42,7 +42,7 @@ pub fn run_gui(app_type: &'static str) {
         Box::new(move |cc| {
             // Customize look and feel
             let mut style = (*cc.egui_ctx.style()).clone();
-            
+
             // Set modern dark theme colors
             let mut visuals = egui::Visuals::dark();
             visuals.window_rounding = 12.0.into();
@@ -53,10 +53,10 @@ pub fn run_gui(app_type: &'static str) {
             visuals.widgets.inactive.rounding = 8.0.into();
             visuals.widgets.hovered.rounding = 8.0.into();
             visuals.widgets.active.rounding = 8.0.into();
-            
+
             style.visuals = visuals;
             cc.egui_ctx.set_style(style);
-            
+
             // Spawn background thread to request repaint every 1 second
             let ctx_clone = cc.egui_ctx.clone();
             std::thread::spawn(move || {
@@ -65,7 +65,7 @@ pub fn run_gui(app_type: &'static str) {
                     ctx_clone.request_repaint();
                 }
             });
-            
+
             Ok(Box::new(StatusApp::new(app_type)))
         }),
     );
@@ -131,7 +131,7 @@ impl eframe::App for StatusApp {
         if self.last_tick.elapsed() >= std::time::Duration::from_secs(1) {
             self.last_tick = std::time::Instant::now();
             self.refresh();
-            
+
             if self.is_running {
                 let current_env = std::fs::read_to_string(&self.config_path).unwrap_or_default();
                 self.env_changed = current_env != self.active_env_content;
@@ -142,16 +142,16 @@ impl eframe::App for StatusApp {
 
         egui::CentralPanel::default().show(ctx, |ui| {
             ui.add_space(15.0);
-            
+
             ui.vertical_centered(|ui| {
-                let title = if self.app_type == "client" {
-                    "Open Remote URL — Client Panel"
+                let title = if self.app_type == "sender" {
+                    "Open Remote URL — Sender Panel"
                 } else {
-                    "Open Remote URL — Host Panel"
+                    "Open Remote URL — Receiver Panel"
                 };
                 ui.heading(title);
             });
-            
+
             ui.add_space(15.0);
             ui.separator();
             ui.add_space(15.0);
@@ -175,11 +175,11 @@ impl eframe::App for StatusApp {
                             ui.add_space(4.0);
                             ui.label(if self.is_installed { "Installed" } else { "Not Installed" });
                         });
-                        
+
                         ui.add_space(15.0);
                         ui.label("|");
                         ui.add_space(15.0);
-                        
+
                         // Running status
                         ui.horizontal(|ui| {
                             let dot_color = if self.is_running {
@@ -207,22 +207,22 @@ impl eframe::App for StatusApp {
                     copyable_label(ui, self.config_path.to_string_lossy().to_string());
                     ui.end_row();
 
-                    if self.app_type == "client" {
-                        let config = crate::config::ClientConfig::load();
+                    if self.app_type == "sender" {
+                        let config = crate::config::SenderConfig::load();
                         let host_url_display = format!("{}/", config.host_url.trim_end_matches('/'));
-                        let client_url_display = format!("http://{}/", config.listen);
-                        let relay_url_display = format!("{}/", config.relay_url.trim_end_matches('/'));
+                        let sender_url_display = format!("http://{}/", config.listen);
+                        let self_url_display = format!("{}/", config.self_url.trim_end_matches('/'));
 
                         ui.strong("Host URL:");
                         copyable_label(ui, host_url_display);
                         ui.end_row();
 
-                        ui.strong("Client URL:");
-                        copyable_label(ui, client_url_display);
+                        ui.strong("Sender URL:");
+                        copyable_label(ui, sender_url_display);
                         ui.end_row();
 
-                        ui.strong("Relay URL:");
-                        copyable_label(ui, relay_url_display);
+                        ui.strong("Self URL:");
+                        copyable_label(ui, self_url_display);
                         ui.end_row();
 
                         ui.strong("Auth:");
@@ -236,11 +236,11 @@ impl eframe::App for StatusApp {
                         }
                         ui.end_row();
                     } else {
-                        let config = crate::config::HostConfig::load();
-                        let host_url_display = format!("http://{}/", config.listen);
+                        let config = crate::config::ReceiverConfig::load();
+                        let receiver_url_display = format!("http://{}/", config.listen);
 
-                        ui.strong("Host URL:");
-                        copyable_label(ui, host_url_display);
+                        ui.strong("Receiver URL:");
+                        copyable_label(ui, receiver_url_display);
                         ui.end_row();
 
                         ui.strong("Auth:");
@@ -271,7 +271,7 @@ impl eframe::App for StatusApp {
                 } else {
                     "Install Service"
                 };
-                
+
                 // Install/Update button
                 let install_btn = ui.add_enabled(
                     buttons_enabled,
@@ -286,10 +286,10 @@ impl eframe::App for StatusApp {
                             self.message = Some("Service successfully installed and started!".to_string());
                             self.is_error = false;
                             // Wait for daemon to start (up to 3 seconds)
-                            let port = if self.app_type == "client" {
-                                crate::config::ClientConfig::load().client_port
+                            let port = if self.app_type == "sender" {
+                                crate::config::SenderConfig::load().sender_port
                             } else {
-                                crate::config::HostConfig::load().port
+                                crate::config::ReceiverConfig::load().port
                             };
                             for _ in 0..6 {
                                 std::thread::sleep(std::time::Duration::from_millis(500));
@@ -377,10 +377,10 @@ impl eframe::App for StatusApp {
                                 self.message = Some("Daemon successfully started!".to_string());
                                 self.is_error = false;
                                 // Wait for daemon to start (up to 3 seconds)
-                                let port = if self.app_type == "client" {
-                                    crate::config::ClientConfig::load().client_port
+                                let port = if self.app_type == "sender" {
+                                    crate::config::SenderConfig::load().sender_port
                                 } else {
-                                    crate::config::HostConfig::load().port
+                                    crate::config::ReceiverConfig::load().port
                                 };
                                 for _ in 0..6 {
                                     std::thread::sleep(std::time::Duration::from_millis(500));

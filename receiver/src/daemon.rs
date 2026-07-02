@@ -32,15 +32,15 @@ struct ServerState {
 #[derive(Clone)]
 struct ProxyState {
     port: u16,
-    relay_url: String,
+    self_url: String,
     passphrase: Option<String>,
     // Shared across all requests for this proxy.  Built once with timeouts so
-    // that a slow or unreachable relay does not hold file-descriptors forever.
+    // that a slow or unreachable sender does not hold file-descriptors forever.
     client: reqwest::Client,
 }
 
 pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
-    let config = shared::config::HostConfig::load();
+    let config = shared::config::ReceiverConfig::load();
     let bind_host = config.bind_host;
     let port = config.port;
     let passphrase = config.passphrase;
@@ -60,17 +60,17 @@ pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
         .with_state(state);
 
     let addr: SocketAddr = format!("{}:{}", bind_host, port).parse()?;
-    log::info!("Host Daemon listening on http://{}:{}", bind_host, port);
+    log::info!("Receiver Daemon listening on http://{}:{}", bind_host, port);
     let listener = match tokio::net::TcpListener::bind(addr).await {
         Ok(l) => l,
         Err(e) => {
             if e.kind() == std::io::ErrorKind::AddrInUse {
                 let msg = format!(
-                    "Failed to start Host Daemon: Port {} is already in use. Another instance is likely running.",
+                    "Failed to start Receiver Daemon: Port {} is already in use. Another instance is likely running.",
                     port
                 );
                 log::error!("{}", msg);
-                println!("=== Open Remote URL Host Daemon Error ===\n{}", msg);
+                println!("=== Open Remote URL Receiver Daemon Error ===\n{}", msg);
                 std::process::exit(1);
             } else {
                 return Err(e.into());
@@ -104,8 +104,8 @@ async fn handle_open_url(
     // to process other requests (ports updates, subsequent opens, etc.).
     let url = payload.url.clone();
     tokio::task::spawn_blocking(move || match open::that(&url) {
-        Ok(_) => log::info!("Successfully opened URL on Host browser"),
-        Err(e) => log::error!("Failed to open URL on Host browser: {}", e),
+        Ok(_) => log::info!("Successfully opened URL on Receiver browser"),
+        Err(e) => log::error!("Failed to open URL on Receiver browser: {}", e),
     });
 
     (StatusCode::OK, "OK").into_response()
@@ -127,16 +127,16 @@ async fn handle_ports(
     }
 
     log::info!(
-        "Received ports request: action={:?}, ports={:?}, relay_url={}",
+        "Received ports request: action={:?}, ports={:?}, self_url={}",
         payload.action,
         payload.ports,
-        payload.relay_url
+        payload.self_url
     );
 
     match payload.action {
         PortAction::Add => {
             for &port in &payload.ports {
-                start_proxy(port, payload.relay_url.clone(), state.clone()).await;
+                start_proxy(port, payload.self_url.clone(), state.clone()).await;
             }
         }
         PortAction::Delete => {
@@ -153,7 +153,7 @@ async fn handle_ports(
     (StatusCode::OK, "OK").into_response()
 }
 
-async fn start_proxy(port: u16, relay_url: String, state: Arc<ServerState>) {
+async fn start_proxy(port: u16, self_url: String, state: Arc<ServerState>) {
     let mut lock = state.active_proxies.lock().await;
     if lock.map.contains_key(&port) {
         log::info!("Proxy for port {} already active. Reusing existing.", port);
@@ -174,7 +174,7 @@ async fn start_proxy(port: u16, relay_url: String, state: Arc<ServerState>) {
 
     let active_proxies_clone = state.active_proxies.clone();
     let passphrase_clone = state.passphrase.clone();
-    let relay_url_clone = relay_url.clone();
+    let self_url_clone = self_url.clone();
     let relay_client = reqwest::Client::builder()
         .connect_timeout(Duration::from_secs(10))
         .timeout(Duration::from_secs(30))
@@ -187,7 +187,7 @@ async fn start_proxy(port: u16, relay_url: String, state: Arc<ServerState>) {
             .fallback(handle_proxy_fallback)
             .with_state(ProxyState {
                 port,
-                relay_url: relay_url_clone,
+                self_url: self_url_clone,
                 passphrase: passphrase_clone,
                 client: relay_client,
             });
@@ -245,7 +245,7 @@ async fn handle_proxy_fallback(
     body: Bytes,
 ) -> impl IntoResponse {
     log::info!(
-        "[Proxy:{}] Received request on Host: {} {}",
+        "[Proxy:{}] Received request on Receiver: {} {}",
         state.port,
         method,
         uri
@@ -273,7 +273,7 @@ async fn handle_proxy_fallback(
     };
 
     let mut post_req = state.client
-        .post(format!("{}/proxy", state.relay_url))
+        .post(format!("{}/proxy", state.self_url))
         .json(&proxy_req);
     if let Some(ref phrase) = state.passphrase {
         post_req = post_req.header("Authorization", format!("Bearer {}", phrase));
@@ -316,41 +316,41 @@ async fn handle_proxy_fallback(
                     }
                     Err(e) => {
                         log::error!(
-                            "[Proxy:{}] Failed to parse relay response as ProxyResponse: {}",
+                            "[Proxy:{}] Failed to parse sender response as ProxyResponse: {}",
                             state.port,
                             e
                         );
                         return (
                             StatusCode::BAD_GATEWAY,
-                            format!("Relay response parse error: {}", e),
+                            format!("Sender response parse error: {}", e),
                         )
                             .into_response();
                     }
                 }
             }
-            // Relay itself returned a non-2xx status (e.g. local server unreachable).
+            // Sender itself returned a non-2xx status (e.g. local server unreachable).
             let body = resp.text().await.unwrap_or_default();
             log::error!(
-                "[Proxy:{}] Client relay returned {}: {}",
+                "[Proxy:{}] Sender relay returned {}: {}",
                 state.port,
                 relay_status,
                 body
             );
             (
                 StatusCode::BAD_GATEWAY,
-                format!("Client relay error {}: {}", relay_status, body),
+                format!("Sender relay error {}: {}", relay_status, body),
             )
                 .into_response()
         }
         Err(e) => {
             log::error!(
-                "[Proxy:{}] Failed to connect to Client relay: {}",
+                "[Proxy:{}] Failed to connect to Sender relay: {}",
                 state.port,
                 e
             );
             (
                 StatusCode::BAD_GATEWAY,
-                format!("Failed to connect to Client relay: {}", e),
+                format!("Failed to connect to Sender relay: {}", e),
             )
                 .into_response()
         }
