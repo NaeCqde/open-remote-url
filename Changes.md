@@ -2,12 +2,18 @@
 
 ## [2026-07-03]
 
-### Fixed
+### Changed
 
-- **macOS URL scheme handler opened GUI instead of forwarding URL**: When macOS launches `OpenRemoteURLClient.app` as the registered URL scheme handler (e.g. `open steam://install/4084250`), the URL is delivered as a `kAEGetURL` Apple Event — not as a command-line argument. The app previously ignored the Apple Event and opened the GUI panel instead. Added `url_event::capture()` in `client/src/main.rs` that registers a `kAEGetURL` handler and spins the CFRunLoop briefly (200 ms) to receive the event before any GUI setup. If a URL is captured, it is forwarded to the running client daemon via `POST /open` and the process exits.
+- **Apple Events are now received inside the client daemon** (macOS): Previously, when macOS launched the app as a URL scheme handler, a separate short-lived process captured the `kAEGetURL` Apple Event and forwarded the URL to the daemon over HTTP. This spawned an extra process on every URL open. Now the daemon itself is the Apple Event target: in `--daemon` mode the main thread runs `CFRunLoopRun()` to receive `kAEGetURL` events, while the tokio HTTP server runs on a background thread. Received URLs are bridged into the async world through an mpsc channel, so no additional process is created.
 
 ### Added
 
-- **`url_event` module** (`client/src/main.rs`, macOS only): Apple Event handler for `kInternetEventClass`/`kAEGetURL`. Exports `install_handler()`, `capture()`, and `send_to_self()` (used in tests).
-- **Unit test** (`client/src/main.rs`): `apple_event_url_roundtrip` — installs the handler, sends a synthetic `kAEGetURL` event with `kAEWaitReply` (synchronous same-process dispatch), and asserts the URL is returned by `capture()`. Runs on a single machine with no external dependencies.
-- **Integration test** (`client/tests/url_scheme_test.rs`, macOS only): `open_command_url_forwarded_end_to_end` — starts a mock host HTTP server, spawns the client daemon (via temp `.env`), calls `open -b quest.nae.open-remote-url.client steam://install/4084250`, and asserts the mock host received the URL. Skipped automatically if the app bundle is not installed or port 30000 is occupied.
+- **`client/src/url_event.rs`** (macOS only): dedicated Apple Event module. Exposes `listen()` (create the URL channel), `install_handler()` (register the `kAEGetURL` handler), `take_receiver()` (hand the receiver to `daemon::run()`), `run_forever()` (block the main thread in `CFRunLoopRun`), and `send_to_self()` (test-only synthetic event dispatch).
+
+### Removed
+
+- **Inline `url_event` module and launch-time `capture()` forwarding** from `client/src/main.rs`: the old approach that briefly spun the run loop in a separate process and POSTed the URL to the daemon is gone. `main()` is no longer `#[tokio::main]`; on macOS `--daemon` it runs the Apple Event loop on the main thread and the tokio runtime on a background thread, and otherwise builds a standard tokio runtime for the CLI/GUI paths.
+
+### Tests
+
+- **Unit test** (`client/src/main.rs`, `apple_event_url_roundtrip`): updated to the new channel-based API — `listen()` + `install_handler()`, send a synthetic `kAEGetURL` event with `kAEWaitReply` (synchronous same-process dispatch), and assert the URL arrives on the receiver from `take_receiver()`. Runs on a single machine with no external dependencies.
