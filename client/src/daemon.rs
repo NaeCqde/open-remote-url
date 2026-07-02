@@ -248,27 +248,41 @@ async fn run_port_tracker(
                 let sent_ports_clone = sent_ports.clone();
                 let resolved_relay_url_clone = resolved_relay_url.clone();
 
-                // Get all ports seen in the last 15 seconds (history + current)
-                let mut ports_15s = HashSet::new();
-                for (_, ports) in &history {
-                    for &port in ports {
-                        ports_15s.insert(port);
+                // Port forwarding is only meaningful for http/https URLs.
+                // Custom schemes (vcc://, unityhub://, etc.) are remote-opened on the
+                // host as-is; there is no local server to proxy back to.
+                let needs_port_forwarding = url.starts_with("http://") || url.starts_with("https://");
+
+                // Collect 15-second port history only when it will be used.
+                let ports_15s: HashSet<u16> = if needs_port_forwarding {
+                    let mut set = HashSet::new();
+                    for (_, ports) in &history {
+                        for &port in ports {
+                            set.insert(port);
+                        }
                     }
-                }
-                if let Ok(current_ports) = get_listening_ports() {
-                    for port in current_ports {
-                        ports_15s.insert(port);
+                    if let Ok(current_ports) = get_listening_ports() {
+                        for port in current_ports {
+                            set.insert(port);
+                        }
                     }
-                }
-                ports_15s.remove(&client_port);
+                    set.remove(&client_port);
+                    set
+                } else {
+                    HashSet::new()
+                };
 
                 tokio::spawn(async move {
-                    // 1. Immediately send open request to Host Daemon (with empty ports)
+                    // 1. Immediately send open request to Host Daemon.
                     log::info!("Sending immediate open request for URL: {}", url);
                     let open_payload = OpenUrlRequest { url };
 
                     if let Err(e) = send_open_request(&host_url_clone, &open_payload, &passphrase_clone).await {
                         log::error!("Failed to send open request: {}", e);
+                    }
+
+                    if !needs_port_forwarding {
+                        return;
                     }
 
                     // 2. Send 15-second ports to host /ports (action: add)
