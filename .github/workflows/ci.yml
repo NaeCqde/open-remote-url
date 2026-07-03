@@ -17,13 +17,16 @@ jobs:
         strategy:
             fail-fast: false
             matrix:
+                # https://github.com/actions/runner-images
+                # riscvランナーが一生待機中なので、riscvをサポートする日は訪れません
+                # https://github.com/apps/rise-risc-v-runners-personal
                 platform:
                     - os-name: Linux-x86_64
-                      runs-on: ubuntu-latest
+                      runs-on: ubuntu-24.04
                       target: x86_64-unknown-linux-musl
                       use-cross: true
                     - os-name: Linux-aarch64
-                      runs-on: ubuntu-latest
+                      runs-on: ubuntu-22.04-arm
                       target: aarch64-unknown-linux-musl
                       use-cross: true
                     - os-name: Linux-riscv64
@@ -32,20 +35,16 @@ jobs:
                       use-cross: false
 
                     - os-name: Windows-x86_64
-                      runs-on: windows-latest
+                      runs-on: windows-2025
                       target: x86_64-pc-windows-msvc
                       use-cross: true
                     - os-name: Windows-aarch64
-                      runs-on: windows-latest
+                      runs-on: windows-11-arm
                       target: aarch64-pc-windows-msvc
                       use-cross: true
 
-                    - os-name: macOS-x86_64
-                      runs-on: macos-latest
-                      target: x86_64-apple-darwin
-                      use-cross: true
                     - os-name: macOS-aarch64
-                      runs-on: macos-latest
+                      runs-on: macos-26
                       target: aarch64-apple-darwin
                       use-cross: true
         runs-on: ${{ matrix.platform.runs-on }}
@@ -58,6 +57,8 @@ jobs:
                   override: true
                   profile: minimal
             - uses: Swatinem/rust-cache@v2
+              with:
+                  key: ${{ matrix.platform.runs-on }}-${{ matrix.platform.target }}
             - name: Install cargo-post (macOS only)
               if: contains(matrix.platform.target, 'apple-darwin')
               run: cargo install cargo-post
