@@ -64,6 +64,8 @@ extern "C" {
     fn AEGetDescData(d: *const AEDesc, buf: *mut c_void, max: isize) -> i32;
     fn AEDisposeDesc(d: *mut AEDesc) -> i32;
     fn CFRunLoopRun();
+    fn CFRunLoopRunInMode(mode: *const c_void, seconds: f64, return_after_source_handled: bool) -> i32;
+    static kCFRunLoopDefaultMode: *const c_void;
 }
 
 // For tests: synthesize an Apple Event and dispatch it to the current process.
@@ -134,6 +136,15 @@ pub fn install_handler() {
 /// Must be called on the main thread so that AppKit delivers Apple Events here.
 pub fn run_forever() {
     unsafe { CFRunLoopRun(); }
+}
+
+/// Pump the main thread's run loop for up to `seconds`, allowing a pending
+/// `kAEGetURL` Apple Event (e.g. from `open scheme://...`) to be delivered to
+/// `on_get_url` and pushed onto the channel. Must be called on the main thread.
+pub fn pump_for(seconds: f64) {
+    unsafe {
+        CFRunLoopRunInMode(kCFRunLoopDefaultMode, seconds, false);
+    }
 }
 
 /// Send a synthetic kAEGetURL Apple Event to the current process.

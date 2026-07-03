@@ -444,12 +444,20 @@ fn setup_macos_launchagent(
     let label = plist_label(app_type);
     let plist_path = plist_dir.join(format!("{}.plist", label));
 
-    let work_dir = binary_path
+    // binary_path is .../Name.app/Contents/MacOS/<bin>; three parents up is the
+    // .app bundle root.
+    let app_bundle = binary_path
         .parent()
         .and_then(|p| p.parent())
         .and_then(|p| p.parent())
         .unwrap_or(binary_path);
+    let work_dir = app_bundle;
 
+    // Launch via `open -a` (not a raw exec of the inner binary) so that
+    // LaunchServicesd registers the resulting process as the running instance
+    // of this bundle. Without that, `open scheme://...` can't find an
+    // already-running instance to deliver the Apple Event to and instead
+    // spawns a brand-new, argument-less process every time.
     let plist_content = format!(
         r#"<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -459,7 +467,10 @@ fn setup_macos_launchagent(
     <string>{}</string>
     <key>ProgramArguments</key>
     <array>
+        <string>/usr/bin/open</string>
+        <string>-a</string>
         <string>{}</string>
+        <string>--args</string>
         <string>--daemon</string>
     </array>
     <key>WorkingDirectory</key>
@@ -472,7 +483,7 @@ fn setup_macos_launchagent(
 </plist>
 "#,
         label,
-        binary_path.to_string_lossy(),
+        app_bundle.to_string_lossy(),
         work_dir.to_string_lossy()
     );
 

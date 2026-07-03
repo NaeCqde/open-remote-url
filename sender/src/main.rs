@@ -66,8 +66,57 @@ fn looks_like_url(s: &str) -> bool {
     s.starts_with("http://") || s.starts_with("https://") || s.contains("://")
 }
 
+/// POST `url` to the local daemon's `/open` endpoint. Prints an error and
+/// exits(1) if the daemon can't be reached; on success, just logs.
+async fn forward_url_to_daemon(url: &str) {
+    let config = shared::config::SenderConfig::load();
+    let sender_port = config.sender_port;
+    let daemon_url = format!("http://localhost:{}/open", sender_port);
+
+    log::info!("Sending URL to local daemon: {}", url);
+
+    let client = reqwest::Client::new();
+    let mut req = client
+        .post(&daemon_url)
+        .json(&serde_json::json!({ "url": url }));
+    if let Some(phrase) = config.passphrase {
+        req = req.header("Authorization", format!("Bearer {}", phrase));
+    }
+
+    match req.send().await {
+        Ok(resp) => {
+            if resp.status().is_success() {
+                log::info!("URL successfully forwarded to local daemon.");
+            } else {
+                println!(
+                    "=== Open Remote URL Error ===\nLocal daemon returned error status: {}",
+                    resp.status()
+                );
+                exit(1);
+            }
+        }
+        Err(e) => {
+            println!("=== Open Remote URL Error ===\nFailed to connect to local daemon: {}\nMake sure the daemon is running ('open-remote-url-sender --daemon')", e);
+            exit(1);
+        }
+    }
+}
+
 fn main() -> Result<(), Box<dyn Error>> {
     let args: Vec<String> = env::args().collect();
+
+    // macOS: this binary is the registered URL scheme handler (CFBundleExecutable).
+    // Whenever macOS launches/targets it for `open scheme://...`, the URL arrives
+    // as a `kAEGetURL` Apple Event on the main thread's run loop -- regardless of
+    // whether we were invoked with `--daemon` or with no args at all (e.g. because
+    // the persistent daemon wasn't running yet and Launch Services spawned a fresh
+    // instance). So install the handler unconditionally, before any GUI/CLI branch
+    // decision runs, or a pending event would be silently dropped.
+    #[cfg(target_os = "macos")]
+    {
+        url_event::listen();
+        url_event::install_handler();
+    }
 
     // macOS daemon: this process is the registered URL scheme handler.
     // When macOS launches it as a handler (e.g. `open steam://...`), the URL
@@ -80,9 +129,6 @@ fn main() -> Result<(), Box<dyn Error>> {
         env_logger::init_from_env(env_logger::Env::new().default_filter_or("info"));
         shared::config::load_env("sender");
         log::info!("Starting open-remote-url-sender daemon...");
-
-        url_event::listen();
-        url_event::install_handler();
 
         std::thread::spawn(|| {
             let rt = tokio::runtime::Runtime::new()
@@ -108,6 +154,20 @@ async fn async_main(args: Vec<String>) -> Result<(), Box<dyn Error>> {
     env_logger::init_from_env(env_logger::Env::new().default_filter_or("info"));
     shared::config::load_env("sender");
 
+    // macOS: if we were launched to handle a URL scheme (e.g. `open steam://...`)
+    // and the persistent `--daemon` process didn't catch the Apple Event itself,
+    // this fresh instance will have received it here. Pump the run loop briefly
+    // to let it arrive, forward it to the local daemon, and exit -- before ever
+    // considering the GUI/status branches below.
+    #[cfg(target_os = "macos")]
+    if let Some(rx) = url_event::take_receiver() {
+        url_event::pump_for(0.3);
+        if let Ok(url) = rx.try_recv() {
+            forward_url_to_daemon(&url).await;
+            exit(0);
+        }
+    }
+
     shared::cli::setup_gui_or_console("sender", &args);
 
     if args.len() < 2 {
@@ -125,37 +185,7 @@ async fn async_main(args: Vec<String>) -> Result<(), Box<dyn Error>> {
         log::info!("Starting open-remote-url-sender daemon...");
         daemon::run().await?;
     } else if looks_like_url(cmd_or_url) {
-        let config = shared::config::SenderConfig::load();
-        let sender_port = config.sender_port;
-        let daemon_url = format!("http://localhost:{}/open", sender_port);
-
-        log::info!("Sending URL to local daemon: {}", cmd_or_url);
-
-        let client = reqwest::Client::new();
-        let mut req = client
-            .post(&daemon_url)
-            .json(&serde_json::json!({ "url": cmd_or_url }));
-        if let Some(phrase) = config.passphrase {
-            req = req.header("Authorization", format!("Bearer {}", phrase));
-        }
-
-        match req.send().await {
-            Ok(resp) => {
-                if resp.status().is_success() {
-                    log::info!("URL successfully forwarded to local daemon.");
-                } else {
-                    println!(
-                        "=== Open Remote URL Error ===\nLocal daemon returned error status: {}",
-                        resp.status()
-                    );
-                    exit(1);
-                }
-            }
-            Err(e) => {
-                println!("=== Open Remote URL Error ===\nFailed to connect to local daemon: {}\nMake sure the daemon is running ('open-remote-url-sender --daemon')", e);
-                exit(1);
-            }
-        }
+        forward_url_to_daemon(cmd_or_url).await;
     } else {
         print_status();
         exit(0);
