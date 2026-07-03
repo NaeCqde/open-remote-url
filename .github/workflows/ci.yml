@@ -77,6 +77,13 @@ jobs:
                   command: build
                   args: --manifest-path Cargo.toml --locked --release --target ${{ matrix.platform.target }}
 
+            - name: Install RISCV host-tools
+              if: matrix.platform.target == 'riscv64gc-unknown-linux-musl'
+              shell: bash
+              run: |
+                  git clone https://github.com/sophgo/host-tools --depth=1
+                  echo "$(pwd)/host-tools/gcc/riscv64-linux-musl-x86_64/bin" >> $GITHUB_PATH
+
             - name: Build Sender & Receiver RISCV with Cargo or Cross
               if: matrix.platform.target == 'riscv64gc-unknown-linux-musl'
               uses: actions-rs/cargo@v1
