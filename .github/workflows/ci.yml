@@ -18,7 +18,6 @@ jobs:
             fail-fast: false
             matrix:
                 # https://github.com/actions/runner-images
-                # riscvランナーが一生待機中なので、riscvをサポートする日は訪れません
                 # https://github.com/apps/rise-risc-v-runners-personal
                 platform:
                     - os-name: Linux-x86_64
