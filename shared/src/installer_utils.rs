@@ -1,6 +1,8 @@
 use std::env;
-use std::fs;
 use std::path::PathBuf;
+
+#[cfg(any(target_os = "macos", target_os = "linux"))]
+use std::fs;
 
 pub(crate) fn binary_name(app_type: &str) -> &'static str {
     if app_type == "sender" {
@@ -50,6 +52,7 @@ pub(crate) fn kill_other_daemon_processes(app_type: &str) {
     }
 }
 
+#[cfg(target_os = "macos")]
 pub(crate) fn app_name(app_type: &str) -> &'static str {
     if app_type == "sender" {
         "OpenRemoteURLSender"

@@ -3,13 +3,10 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 pub use crate::uninstaller::uninstall;
-use crate::installer_utils::{
-    app_name, binary_name, install_dir, installed_exe_path, kill_other_daemon_processes,
-    stop_and_unregister,
-};
+use crate::installer_utils::{install_dir, installed_exe_path, kill_other_daemon_processes, stop_and_unregister};
 
 #[cfg(target_os = "macos")]
-use crate::installer_utils::{launchagent_plist_path, plist_label, LSREGISTER_PATH};
+use crate::installer_utils::{app_name, binary_name, launchagent_plist_path, plist_label, LSREGISTER_PATH};
 #[cfg(target_os = "linux")]
 use crate::installer_utils::service_name;
 #[cfg(target_os = "windows")]
@@ -663,6 +660,8 @@ pub fn start_daemon(app_type: &str) -> Result<(), Box<dyn std::error::Error>> {
     }
 
     // Default fallback (Windows, or if not installed on mac/linux)
+    #[cfg(target_os = "windows")]
+    let _ = is_installed;
     let exe = find_exe_to_start(app_type)?;
     crate::utils::create_no_window(std::process::Command::new(&exe))
         .arg("--daemon")
