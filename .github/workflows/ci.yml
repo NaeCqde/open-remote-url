@@ -32,7 +32,7 @@ jobs:
                     - os-name: Linux-riscv64
                       runs-on: ubuntu-24.04
                       target: riscv64gc-unknown-linux-musl
-                      use-cross: false
+                      use-cross: true
 
                     - os-name: Windows-x86_64
                       runs-on: windows-2025
@@ -70,29 +70,30 @@ jobs:
                   cargo post build --package open_remote_url_receiver --locked --release --target ${{ matrix.platform.target }}
 
             - name: Build Sender & Receiver with Cargo or Cross (non-macOS)
-              if: "!contains(matrix.platform.target, 'apple-darwin') && matrix.platform.target != 'riscv64gc-unknown-linux-musl'"
+              if: "!contains(matrix.platform.target, 'apple-darwin')"
+              # && matrix.platform.target != 'riscv64gc-unknown-linux-musl'"
               uses: actions-rs/cargo@v1
               with:
                   use-cross: ${{ matrix.platform.use-cross }}
                   command: build
                   args: --manifest-path Cargo.toml --locked --release --target ${{ matrix.platform.target }}
 
-            - name: Install RISCV host-tools
-              if: matrix.platform.target == 'riscv64gc-unknown-linux-musl'
-              shell: bash
-              run: |
-                  git clone https://github.com/sophgo/host-tools --depth=1
-                  echo "$(pwd)/host-tools/gcc/riscv64-linux-musl-x86_64/bin" >> $GITHUB_PATH
+            #- name: Install RISCV host-tools
+            # if: matrix.platform.target == 'riscv64gc-unknown-linux-musl'
+            #shell: bash
+            #run: |
+            #    git clone https://github.com/sophgo/host-tools --depth=1
+            #    echo "$(pwd)/host-tools/gcc/riscv64-linux-musl-x86_64/bin" >> $GITHUB_PATH
 
-            - name: Build Sender & Receiver RISCV with Cargo or Cross
-              if: matrix.platform.target == 'riscv64gc-unknown-linux-musl'
-              uses: actions-rs/cargo@v1
-              env:
-                  RUSTFLAGS: "-Ctarget-feature=+crt-static"
-              with:
-                  use-cross: ${{ matrix.platform.use-cross }}
-                  command: build
-                  args: --manifest-path Cargo.toml --locked --release --target ${{ matrix.platform.target }}
+            #- name: Build Sender & Receiver RISCV with Cargo or Cross
+            #  if: matrix.platform.target == 'riscv64gc-unknown-linux-musl'
+            #  uses: actions-rs/cargo@v1
+            #  env:
+            #     RUSTFLAGS: "-Ctarget-feature=+crt-static"
+            # with:
+            #      use-cross: ${{ matrix.platform.use-cross }}
+            #      command: build
+            #      args: --manifest-path Cargo.toml --locked --release --target ${{ matrix.platform.target }}
 
             - name: Determine Extra Files
               shell: bash
