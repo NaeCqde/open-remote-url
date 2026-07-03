@@ -20,51 +20,44 @@ fn print_status() {
         "DISABLED  *** Set PASSPHRASE if exposing to the internet ***".to_string()
     };
 
-    let mut status_msg = format!(
+    let exe_display = if is_installed {
+        exe_path.to_string_lossy().to_string()
+    } else {
+        "(Will be set upon installation)".to_string()
+    };
+
+    let schemes_display = if config.schemes.is_empty() {
+        "(none)".to_string()
+    } else {
+        config.schemes.join(", ")
+    };
+
+    let http_display = if config.register_http { "Registered" } else { "Not registered" };
+
+    let status_msg = format!(
         "Open Remote URL - Sender Status\n\n\
         [Status]\n\
-        - Installed:  {}\n\
-        - Running:    {}\n\
-        - Listen:     http://{}/\n\
-        - SELF:       {}/\n\
-        - HOST:       {}/\n\
-        - Auth:       {}",
+        - Installed:        {}\n\
+        - Running:          {}\n\
+        - Executable:       {}\n\
+        - Configuration:    {}\n\
+        - Sender URL:       http://{}/\n\
+        - Self URL:         {}/\n\
+        - Host URL:         {}/\n\
+        - Auth:             {}\n\
+        - Custom Schemes:   {}\n\
+        - HTTP/HTTPS:       {}",
         if is_installed { "Yes" } else { "No" },
         if is_running { "Yes" } else { "No" },
+        exe_display,
+        config_path.to_string_lossy(),
         config.listen,
         config.self_url.trim_end_matches('/'),
         config.host_url.trim_end_matches('/'),
         auth_status,
+        schemes_display,
+        http_display,
     );
-
-    if is_installed {
-        status_msg.push_str(&format!(
-            "\n\
-            - Executable: {}\n\
-            - Config:     {}",
-            exe_path.to_string_lossy(),
-            config_path.to_string_lossy()
-        ));
-    }
-
-    let usage_msg = if cfg!(target_os = "windows") {
-        "\n\n\
-        [Usage]\n\
-        - To install / start sender:\n  Double-click the executable to open GUI Control Panel\n\n\
-        - To uninstall / clean registrations:\n  Open GUI Control Panel and click Uninstall"
-    } else if cfg!(target_os = "macos") {
-        "\n\n\
-        [Usage]\n\
-        - To install / start sender:\n  Double-click the OpenRemoteURLSender.app bundle to open GUI Control Panel\n\n\
-        - To uninstall / clean registrations:\n  Open GUI Control Panel and click Uninstall"
-    } else {
-        "\n\n\
-        [Usage]\n\
-        - To install / start sender:\n  Double-click the executable to open GUI Control Panel (GUI Desktop)\n  Or run ./install.sh in the release folder (CLI/Headless)\n\n\
-        - To uninstall / clean registrations:\n  Open GUI Control Panel and click Uninstall (GUI)\n  Or run ./uninstall.sh in the release folder (CLI/Headless)"
-    };
-
-    status_msg.push_str(usage_msg);
 
     println!("{}", status_msg);
 }
@@ -85,8 +78,8 @@ fn main() -> Result<(), Box<dyn Error>> {
     #[cfg(target_os = "macos")]
     if args.iter().any(|a| a == "--daemon") {
         env_logger::init_from_env(env_logger::Env::new().default_filter_or("info"));
-        shared::config::load_env("client");
-        log::info!("Starting open-remote-url-client daemon...");
+        shared::config::load_env("sender");
+        log::info!("Starting open-remote-url-sender daemon...");
 
         url_event::listen();
         url_event::install_handler();

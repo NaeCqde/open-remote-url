@@ -17,47 +17,28 @@ fn print_status() {
         "DISABLED  *** Set PASSPHRASE if exposing to the internet ***".to_string()
     };
 
-    let mut status_msg = format!(
+    let exe_display = if is_installed {
+        exe_path.to_string_lossy().to_string()
+    } else {
+        "(Will be set upon installation)".to_string()
+    };
+
+    let status_msg = format!(
         "Open Remote URL - Receiver Status\n\n\
         [Status]\n\
-        - Installed:  {}\n\
-        - Running:    {}\n\
-        - Listen:     http://{}/\n\
-        - Auth:       {}",
+        - Installed:      {}\n\
+        - Running:        {}\n\
+        - Executable:     {}\n\
+        - Configuration:  {}\n\
+        - Receiver URL:   http://{}/\n\
+        - Auth:           {}",
         if is_installed { "Yes" } else { "No" },
         if is_running { "Yes" } else { "No" },
+        exe_display,
+        config_path.to_string_lossy(),
         config.listen,
         auth_status,
     );
-
-    if is_installed {
-        status_msg.push_str(&format!(
-            "\n\
-            - Executable: {}\n\
-            - Config:     {}",
-            exe_path.to_string_lossy(),
-            config_path.to_string_lossy()
-        ));
-    }
-
-    let usage_msg = if cfg!(target_os = "windows") {
-        "\n\n\
-        [Usage]\n\
-        - To install / start receiver:\n  Double-click the executable to open GUI Control Panel\n\n\
-        - To uninstall / clean registrations:\n  Open GUI Control Panel and click Uninstall"
-    } else if cfg!(target_os = "macos") {
-        "\n\n\
-        [Usage]\n\
-        - To install / start receiver:\n  Double-click the OpenRemoteURLReceiver.app bundle to open GUI Control Panel\n\n\
-        - To uninstall / clean registrations:\n  Open GUI Control Panel and click Uninstall"
-    } else {
-        "\n\n\
-        [Usage]\n\
-        - To install / start receiver:\n  Double-click the executable to open GUI Control Panel (GUI Desktop)\n  Or run ./install.sh in the release folder (CLI/Headless)\n\n\
-        - To uninstall / clean registrations:\n  Open GUI Control Panel and click Uninstall (GUI)\n  Or run ./uninstall.sh in the release folder (CLI/Headless)"
-    };
-
-    status_msg.push_str(usage_msg);
 
     println!("{}", status_msg);
 }

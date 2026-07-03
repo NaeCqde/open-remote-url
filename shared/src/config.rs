@@ -220,20 +220,31 @@ fn macos_de_translocate(path: &Path) -> PathBuf {
 }
 
 pub fn load_env(app_type: &str) {
-    // Load all three sources, lowest priority first, so later calls override earlier ones.
-    // Priority (highest wins): 3. cwd .env  >  2. OS config .env  >  1. existing env vars.
+    // Load all sources, lowest priority first, so later calls override earlier ones.
+    // Priority (highest wins): 3. cwd .env  >  2. OS config .env  >  1. existing env vars
+    //                         >  0. inactive.env (only when not installed and no cwd .env).
     //
-    // dotenvy::from_path_override overwrites already-set env vars, so calling in
-    // ascending priority order (1→2→3) means the highest-priority file wins.
+    // dotenvy::from_path_override overwrites already-set env vars; from_path does not.
+
+    let installed = get_config_path(app_type);
+    let cwd_env = env::current_dir().unwrap_or_default().join(".env");
+
+    // Source 0: inactive.env — pre-install preview only.
+    // Used when neither the OS config .env nor a cwd .env exist, so the status
+    // display shows meaningful defaults before the user runs the installer.
+    if !installed.exists() && !cwd_env.exists() {
+        let inactive = find_inactive_env_path(app_type);
+        if inactive.exists() {
+            let _ = dotenvy::from_path(&inactive); // does NOT override existing env vars
+        }
+    }
 
     // Source 2: OS-specific installed config folder.
-    let installed = get_config_path(app_type);
     if installed.exists() {
         let _ = dotenvy::from_path_override(&installed);
     }
 
     // Source 3: current working directory .env — highest priority.
-    let cwd_env = env::current_dir().unwrap_or_default().join(".env");
     if cwd_env.exists() {
         let _ = dotenvy::from_path_override(&cwd_env);
     }

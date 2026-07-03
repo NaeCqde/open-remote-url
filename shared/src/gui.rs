@@ -235,6 +235,22 @@ impl eframe::App for StatusApp {
                             );
                         }
                         ui.end_row();
+
+                        ui.strong("Custom Schemes:");
+                        if config.schemes.is_empty() {
+                            ui.weak("(none)");
+                        } else {
+                            copyable_label(ui, config.schemes.join(", "));
+                        }
+                        ui.end_row();
+
+                        ui.strong("HTTP/HTTPS:");
+                        if config.register_http {
+                            ui.label("Registered");
+                        } else {
+                            ui.weak("Not registered");
+                        }
+                        ui.end_row();
                     } else {
                         let config = crate::config::ReceiverConfig::load();
                         let receiver_url_display = format!("http://{}/", config.listen);
