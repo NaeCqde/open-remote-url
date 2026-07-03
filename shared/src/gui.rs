@@ -13,6 +13,43 @@ fn copyable_label(ui: &mut egui::Ui, text: impl Into<String>) {
     }
 }
 
+/// Instantiate `NSApplication` with `Accessory` activation policy (no Dock icon).
+///
+/// Launch Services only treats a process as a fully "checked-in" running
+/// instance of its bundle -- eligible to receive Apple Events (e.g. the
+/// `kAEGetURL` event from `open scheme://...`) routed to an already-running
+/// app -- once `NSApplication` has actually completed `-finishLaunching` /
+/// entered `-run`. A bare Carbon-style `AEInstallEventHandler` +
+/// `CFRunLoopRun()`, or even just instantiating `NSApp` without running it,
+/// is not enough: Launch Services can locate the process but the Apple Event
+/// send to it times out (`errAETimeout`, -1712) because the check-in never
+/// completes.
+#[cfg(target_os = "macos")]
+pub fn init_nsapplication_accessory() {
+    use objc2_app_kit::{NSApplication, NSApplicationActivationPolicy};
+    use objc2_foundation::MainThreadMarker;
+    if let Some(mtm) = MainThreadMarker::new() {
+        let app = NSApplication::sharedApplication(mtm);
+        let _ = app.setActivationPolicy(NSApplicationActivationPolicy::Accessory);
+    }
+}
+
+/// Block the main thread in `-[NSApplication run]` forever (returns only on
+/// process exit). Unlike a bare `CFRunLoopRun()`, this drives `NSApp` through
+/// its normal launch sequence (`-finishLaunching`, etc.), which is what
+/// completes the Launch Services check-in needed to receive Apple Events
+/// (e.g. `kAEGetURL`) sent to an already-running instance of the bundle.
+/// Any `AEInstallEventHandler` handlers must be installed before calling this.
+#[cfg(target_os = "macos")]
+pub fn run_nsapplication_forever() {
+    use objc2_app_kit::NSApplication;
+    use objc2_foundation::MainThreadMarker;
+    if let Some(mtm) = MainThreadMarker::new() {
+        let app = NSApplication::sharedApplication(mtm);
+        app.run();
+    }
+}
+
 pub fn run_gui(app_type: &'static str) {
     #[cfg(target_os = "macos")]
     {

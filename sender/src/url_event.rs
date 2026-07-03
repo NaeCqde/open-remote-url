@@ -1,8 +1,10 @@
 /// macOS Apple Event handler for URL scheme invocations.
 ///
 /// Architecture (macOS daemon only):
-///   Main thread  → NSApp + CFRunLoopRun  (receives kAEGetURL Apple Events)
-///   Tokio thread → axum HTTP server      (URL forwarding to host)
+///   Main thread  → NSApp.run() (shared::gui::run_nsapplication_forever)
+///                  -- drives NSApp's real launch sequence so Launch Services
+///                  completes its check-in and can route kAEGetURL events here
+///   Tokio thread → axum HTTP server (URL forwarding to host)
 ///
 /// `listen()` sets up a std::sync::mpsc channel whose sender is stored in a
 /// global and called by the C Apple Event handler.  The receiver is retrieved
@@ -63,7 +65,6 @@ extern "C" {
     fn AEGetDescDataSize(d: *const AEDesc) -> isize;
     fn AEGetDescData(d: *const AEDesc, buf: *mut c_void, max: isize) -> i32;
     fn AEDisposeDesc(d: *mut AEDesc) -> i32;
-    fn CFRunLoopRun();
     fn CFRunLoopRunInMode(mode: *const c_void, seconds: f64, return_after_source_handled: bool) -> i32;
     static kCFRunLoopDefaultMode: *const c_void;
 }
@@ -130,12 +131,6 @@ pub fn install_handler() {
     unsafe {
         AEInstallEventHandler(K_INTERNET_EVENT_CLASS, K_AE_GET_URL, on_get_url, 0, false);
     }
-}
-
-/// Block the calling thread in CFRunLoopRun forever (returns only on process exit).
-/// Must be called on the main thread so that AppKit delivers Apple Events here.
-pub fn run_forever() {
-    unsafe { CFRunLoopRun(); }
 }
 
 /// Pump the main thread's run loop for up to `seconds`, allowing a pending

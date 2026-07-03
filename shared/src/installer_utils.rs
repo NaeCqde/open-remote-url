@@ -10,6 +10,46 @@ pub(crate) fn binary_name(app_type: &str) -> &'static str {
     }
 }
 
+/// Kill any running instance of this app's daemon binary, other than the
+/// current process. `launchctl unload` (macOS) / `systemctl --user stop`
+/// (Linux) don't reliably kill a process that Launch Services / a prior
+/// launch spawned outside that specific job tracking (e.g. macOS `open -a`
+/// launches), so this is a belt-and-suspenders sweep by binary name.
+pub(crate) fn kill_other_daemon_processes(app_type: &str) {
+    let current_pid = std::process::id();
+    let name = binary_name(app_type);
+
+    #[cfg(any(target_os = "macos", target_os = "linux"))]
+    {
+        if let Ok(output) = std::process::Command::new("pgrep").arg("-x").arg(name).output() {
+            if let Ok(text) = String::from_utf8(output.stdout) {
+                for line in text.lines() {
+                    if let Ok(pid) = line.trim().parse::<u32>() {
+                        if pid != current_pid {
+                            let _ = std::process::Command::new("kill")
+                                .args(&["-9", &pid.to_string()])
+                                .status();
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    #[cfg(target_os = "windows")]
+    {
+        let _ = crate::utils::create_no_window(std::process::Command::new("taskkill"))
+            .args(&[
+                "/F",
+                "/FI",
+                &format!("PID ne {}", current_pid),
+                "/IM",
+                &format!("{}.exe", name),
+            ])
+            .status();
+    }
+}
+
 pub(crate) fn app_name(app_type: &str) -> &'static str {
     if app_type == "sender" {
         "OpenRemoteURLSender"
@@ -89,19 +129,10 @@ pub(crate) fn registry_run_key(app_type: &str) -> &'static str {
 }
 
 pub(crate) fn stop_and_unregister(app_type: &str) -> Result<(), Box<dyn std::error::Error>> {
+    kill_other_daemon_processes(app_type);
+
     #[cfg(target_os = "windows")]
     {
-        let current_pid = std::process::id();
-        let _ = crate::utils::create_no_window(std::process::Command::new("taskkill"))
-            .args(&[
-                "/F",
-                "/FI",
-                &format!("PID ne {}", current_pid),
-                "/IM",
-                &format!("{}.exe", binary_name(app_type)),
-            ])
-            .status();
-
         let _ = crate::utils::create_no_window(std::process::Command::new("reg"))
             .args(&[
                 "delete",

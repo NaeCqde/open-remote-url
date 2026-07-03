@@ -130,6 +130,12 @@ fn main() -> Result<(), Box<dyn Error>> {
         shared::config::load_env("sender");
         log::info!("Starting open-remote-url-sender daemon...");
 
+        // Required for Launch Services to treat this long-lived process as a
+        // properly checked-in running instance of the bundle -- otherwise a
+        // later `open scheme://...` finds the PID but times out delivering
+        // the Apple Event to it (errAETimeout / -1712).
+        shared::gui::init_nsapplication_accessory();
+
         std::thread::spawn(|| {
             let rt = tokio::runtime::Runtime::new()
                 .expect("failed to build tokio runtime");
@@ -139,9 +145,11 @@ fn main() -> Result<(), Box<dyn Error>> {
             }
         });
 
-        // Blocks forever on the main thread; delivers Apple Events to the
-        // handler installed above (which forwards URLs to the tokio daemon).
-        url_event::run_forever();
+        // Blocks forever on the main thread, driving NSApp's real run loop
+        // (not a bare CFRunLoopRun) so Launch Services completes its
+        // check-in and can deliver Apple Events to this running instance
+        // (which the handler installed above forwards to the tokio daemon).
+        shared::gui::run_nsapplication_forever();
         return Ok(());
     }
 

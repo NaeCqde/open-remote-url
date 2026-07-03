@@ -48,6 +48,9 @@ fn main() {
             if bin_path.exists() {
                 println!("cargo:warning=Binary found. Packaging {}.app...", app_name);
                 let app_dir = out_dir.join(format!("{}.app", app_name));
+                if app_dir.exists() {
+                    fs::remove_dir_all(&app_dir).expect("Failed to remove existing .app bundle");
+                }
                 let macos_dir = app_dir.join("Contents").join("MacOS");
                 fs::create_dir_all(&macos_dir).expect("Failed to create MacOS directory");
 
