@@ -3,10 +3,13 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 pub use crate::uninstaller::uninstall;
-use crate::installer_utils::{app_name, binary_name, install_dir, installed_exe_path, stop_and_unregister};
+use crate::installer_utils::{
+    app_name, binary_name, install_dir, installed_exe_path, kill_other_daemon_processes,
+    stop_and_unregister,
+};
 
 #[cfg(target_os = "macos")]
-use crate::installer_utils::plist_label;
+use crate::installer_utils::{launchagent_plist_path, plist_label, LSREGISTER_PATH};
 #[cfg(target_os = "linux")]
 use crate::installer_utils::service_name;
 #[cfg(target_os = "windows")]
@@ -60,8 +63,6 @@ fn copy_script_files(target_dir: &Path) -> Result<(), Box<dyn std::error::Error>
     let _ = target_dir;
     Ok(())
 }
-
-
 
 fn copy_env_file(app_type: &str) -> Result<(), Box<dyn std::error::Error>> {
     let target_env = crate::config::get_config_path(app_type);
@@ -178,14 +179,9 @@ pub fn check_status(app_type: &str) -> (bool, bool, PathBuf, PathBuf) {
     };
 
     #[cfg(target_os = "macos")]
-    let is_installed = {
-        let home = env::var("HOME").unwrap_or_default();
-        let plist_path = PathBuf::from(home)
-            .join("Library")
-            .join("LaunchAgents")
-            .join(format!("{}.plist", plist_label(app_type)));
-        plist_path.exists()
-    };
+    let is_installed = launchagent_plist_path(app_type)
+        .map(|p| p.exists())
+        .unwrap_or(false);
 
     #[cfg(target_os = "linux")]
     let is_installed = {
@@ -426,8 +422,7 @@ fn setup_macos_app_bundle(
 
 #[cfg(target_os = "macos")]
 fn register_macos_app(app_path: &Path) {
-    let lsregister_path = "/System/Library/Frameworks/CoreServices.framework/Versions/A/Frameworks/LaunchServices.framework/Versions/A/Support/lsregister";
-    let _ = std::process::Command::new(lsregister_path)
+    let _ = std::process::Command::new(LSREGISTER_PATH)
         .arg("-f")
         .arg(app_path)
         .status();
@@ -641,11 +636,7 @@ pub fn start_daemon(app_type: &str) -> Result<(), Box<dyn std::error::Error>> {
     #[cfg(target_os = "macos")]
     {
         if is_installed {
-            let home = env::var("HOME")?;
-            let plist_path = PathBuf::from(home)
-                .join("Library")
-                .join("LaunchAgents")
-                .join(format!("{}.plist", plist_label(app_type)));
+            let plist_path = launchagent_plist_path(app_type)?;
             let _ = std::process::Command::new("launchctl")
                 .args(&["load", &plist_path.to_string_lossy()])
                 .status();
@@ -684,50 +675,26 @@ pub fn stop_daemon(app_type: &str) -> Result<(), Box<dyn std::error::Error>> {
     let (is_installed, _, _, _) = check_status(app_type);
 
     #[cfg(target_os = "macos")]
-    {
-        if is_installed {
-            let home = env::var("HOME")?;
-            let plist_path = PathBuf::from(home)
-                .join("Library")
-                .join("LaunchAgents")
-                .join(format!("{}.plist", plist_label(app_type)));
-            let _ = std::process::Command::new("launchctl")
-                .args(&["unload", &plist_path.to_string_lossy()])
-                .status();
-        }
-        let _ = std::process::Command::new("pkill")
-            .arg("-x")
-            .arg(binary_name(app_type))
+    if is_installed {
+        let plist_path = launchagent_plist_path(app_type)?;
+        let _ = std::process::Command::new("launchctl")
+            .args(&["unload", &plist_path.to_string_lossy()])
             .status();
     }
 
     #[cfg(target_os = "linux")]
-    {
-        if is_installed {
-            let service = service_name(app_type);
-            let _ = std::process::Command::new("systemctl")
-                .args(&["--user", "stop", &service])
-                .status();
-        }
-        let _ = std::process::Command::new("pkill")
-            .arg("-x")
-            .arg(binary_name(app_type))
+    if is_installed {
+        let _ = std::process::Command::new("systemctl")
+            .args(&["--user", "stop", &service_name(app_type)])
             .status();
     }
 
     #[cfg(target_os = "windows")]
-    {
-        let current_pid = std::process::id();
-        let _ = crate::utils::create_no_window(std::process::Command::new("taskkill"))
-            .args(&[
-                "/F",
-                "/FI",
-                &format!("PID ne {}", current_pid),
-                "/IM",
-                &format!("{}.exe", binary_name(app_type)),
-            ])
-            .status();
-    }
+    let _ = is_installed;
+
+    // Sweep any leftover daemon process the service manager didn't stop
+    // (e.g. a macOS instance launched by Launch Services via `open -a`).
+    kill_other_daemon_processes(app_type);
 
     Ok(())
 }

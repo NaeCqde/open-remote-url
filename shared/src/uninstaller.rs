@@ -1,10 +1,15 @@
-use std::env;
 use std::fs;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use crate::installer_utils::stop_and_unregister;
 
 #[cfg(any(target_os = "windows", target_os = "linux"))]
+use std::env;
+#[cfg(any(target_os = "windows", target_os = "linux"))]
+use std::path::PathBuf;
+#[cfg(any(target_os = "windows", target_os = "linux"))]
 use crate::installer_utils::binary_name;
+#[cfg(target_os = "macos")]
+use crate::installer_utils::installed_app_bundle_path;
 
 fn remove_script_files(target_dir: &Path) {
     #[cfg(target_os = "windows")]
@@ -70,17 +75,8 @@ pub fn uninstall(app_type: &str) -> Result<(), Box<dyn std::error::Error>> {
 
     #[cfg(target_os = "macos")]
     {
-        let home = env::var("HOME")?;
-        let apps_dir = PathBuf::from(home).join("Applications");
-        let app_name = if app_type == "sender" {
-            "OpenRemoteURLSender"
-        } else {
-            "OpenRemoteURLReceiver"
-        };
-        let app_path = apps_dir.join(format!("{}.app", app_name));
-
+        let app_path = installed_app_bundle_path(app_type)?;
         remove_script_files(&app_path);
-
         if app_path.exists() {
             let _ = fs::remove_dir_all(&app_path);
         }

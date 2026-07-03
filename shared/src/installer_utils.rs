@@ -114,6 +114,28 @@ pub(crate) fn plist_label(app_type: &str) -> String {
     format!("quest.nae.open-remote-url.{}", app_type)
 }
 
+/// Path to this app's per-user LaunchAgent plist (`~/Library/LaunchAgents/<label>.plist`).
+#[cfg(target_os = "macos")]
+pub(crate) fn launchagent_plist_path(app_type: &str) -> Result<PathBuf, std::env::VarError> {
+    Ok(PathBuf::from(env::var("HOME")?)
+        .join("Library")
+        .join("LaunchAgents")
+        .join(format!("{}.plist", plist_label(app_type))))
+}
+
+/// Path to this app's installed `.app` bundle (`~/Applications/<AppName>.app`).
+#[cfg(target_os = "macos")]
+pub(crate) fn installed_app_bundle_path(app_type: &str) -> Result<PathBuf, std::env::VarError> {
+    Ok(PathBuf::from(env::var("HOME")?)
+        .join("Applications")
+        .join(format!("{}.app", app_name(app_type))))
+}
+
+/// Absolute path to the `lsregister` tool used to (de)register bundles with
+/// Launch Services.
+#[cfg(target_os = "macos")]
+pub(crate) const LSREGISTER_PATH: &str = "/System/Library/Frameworks/CoreServices.framework/Versions/A/Frameworks/LaunchServices.framework/Versions/A/Support/lsregister";
+
 #[cfg(target_os = "linux")]
 pub(crate) fn service_name(app_type: &str) -> String {
     format!("open-remote-url-{}.service", app_type)
@@ -168,31 +190,17 @@ pub(crate) fn stop_and_unregister(app_type: &str) -> Result<(), Box<dyn std::err
 
     #[cfg(target_os = "macos")]
     {
-        let home = env::var("HOME")?;
-        let plist_path = PathBuf::from(home.clone())
-            .join("Library")
-            .join("LaunchAgents")
-            .join(format!("{}.plist", plist_label(app_type)));
-
+        let plist_path = launchagent_plist_path(app_type)?;
         let _ = std::process::Command::new("launchctl")
             .args(&["unload", &plist_path.to_string_lossy()])
             .status();
-
         if plist_path.exists() {
             let _ = fs::remove_file(&plist_path);
         }
 
-        let app_name = if app_type == "sender" {
-            "OpenRemoteURLSender"
-        } else {
-            "OpenRemoteURLReceiver"
-        };
-        let app_path = PathBuf::from(home)
-            .join("Applications")
-            .join(format!("{}.app", app_name));
+        let app_path = installed_app_bundle_path(app_type)?;
         if app_path.exists() {
-            let lsregister_path = "/System/Library/Frameworks/CoreServices.framework/Versions/A/Frameworks/LaunchServices.framework/Versions/A/Support/lsregister";
-            let _ = std::process::Command::new(lsregister_path)
+            let _ = std::process::Command::new(LSREGISTER_PATH)
                 .args(&["-u", &app_path.to_string_lossy()])
                 .status();
         }

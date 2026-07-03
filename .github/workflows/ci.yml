@@ -59,6 +59,10 @@ jobs:
               with:
                   key: ${{ matrix.platform.runs-on }}-${{ matrix.platform.target }}
 
+            # --- Build ---
+            # Each target picks exactly one of the three build steps below.
+
+            # macOS: cargo-post runs post_build.rs to package the .app bundles.
             - name: Install cargo-post (macOS only)
               if: "matrix.platform.target == 'aarch64-apple-darwin'"
               run: cargo install cargo-post
@@ -68,6 +72,7 @@ jobs:
                   cargo post build --package open_remote_url_sender --locked --release --target ${{ matrix.platform.target }}
                   cargo post build --package open_remote_url_receiver --locked --release --target ${{ matrix.platform.target }}
 
+            # RISC-V: native build on the RISC-V runner, statically linked.
             - name: Build Sender & Receiver with Cargo (RISCV only)
               if: matrix.platform.target == 'riscv64gc-unknown-linux-musl'
               uses: actions-rs/cargo@v1
@@ -78,6 +83,7 @@ jobs:
                   command: build
                   args: --manifest-path Cargo.toml --locked --release --target ${{ matrix.platform.target }}
 
+            # Everything else (Linux x86_64/aarch64, Windows): plain Cargo or Cross.
             - name: Build Sender & Receiver with Cargo or Cross (non-macOS)
               if: "matrix.platform.target != 'aarch64-apple-darwin' && matrix.platform.target != 'riscv64gc-unknown-linux-musl'"
               uses: actions-rs/cargo@v1
@@ -86,66 +92,49 @@ jobs:
                   command: build
                   args: --manifest-path Cargo.toml --locked --release --target ${{ matrix.platform.target }}
 
+            # Decide which extra files ship alongside each binary in the release.
+            # The 4 README translations always ship; the rest differ per OS.
             - name: Determine Extra Files
               shell: bash
               run: |
-                  if [[ "${{ matrix.platform.target }}" == *"-apple-darwin" ]]; then
-                    echo "EXTRA_FILES<<EOF" >> $GITHUB_ENV
-                    echo "OpenRemoteURLSender.app.zip" >> $GITHUB_ENV
-                    echo "sender/inactive.env" >> $GITHUB_ENV
-                    echo "README.md" >> $GITHUB_ENV
-                    echo "README.ja_JP.md" >> $GITHUB_ENV
-                    echo "README.ja_EZ.md" >> $GITHUB_ENV
-                    echo "README.zh_CN.md" >> $GITHUB_ENV
-                    echo "EOF" >> $GITHUB_ENV
+                  readmes="README.md README.ja_JP.md README.ja_EZ.md README.zh_CN.md"
 
-                    echo "RECEIVER_EXTRA_FILES<<EOF" >> $GITHUB_ENV
-                    echo "OpenRemoteURLReceiver.app.zip" >> $GITHUB_ENV
-                    echo "receiver/inactive.env" >> $GITHUB_ENV
-                    echo "README.md" >> $GITHUB_ENV
-                    echo "README.ja_JP.md" >> $GITHUB_ENV
-                    echo "README.ja_EZ.md" >> $GITHUB_ENV
-                    echo "README.zh_CN.md" >> $GITHUB_ENV
-                    echo "EOF" >> $GITHUB_ENV
-                  elif [[ "${{ matrix.platform.target }}" == *"-pc-windows-"* ]]; then
-                    echo "EXTRA_FILES<<EOF" >> $GITHUB_ENV
-                    echo "sender/inactive.env" >> $GITHUB_ENV
-                    echo "README.md" >> $GITHUB_ENV
-                    echo "README.ja_JP.md" >> $GITHUB_ENV
-                    echo "README.ja_EZ.md" >> $GITHUB_ENV
-                    echo "README.zh_CN.md" >> $GITHUB_ENV
-                    echo "EOF" >> $GITHUB_ENV
+                  case "${{ matrix.platform.target }}" in
+                    *-apple-darwin)
+                      # macOS ships the packaged .app bundles.
+                      sender_files="OpenRemoteURLSender.app.zip sender/inactive.env"
+                      receiver_files="OpenRemoteURLReceiver.app.zip receiver/inactive.env"
+                      ;;
+                    *-pc-windows-*)
+                      # Windows ships just the bare binary + its config.
+                      sender_files="sender/inactive.env"
+                      receiver_files="receiver/inactive.env"
+                      ;;
+                    *)
+                      # Linux (incl. RISC-V) ships the shell install helpers.
+                      scripts="scripts/install/install.sh scripts/uninstall/uninstall.sh scripts/config/config.sh"
+                      sender_files="$scripts sender/inactive.env"
+                      receiver_files="$scripts receiver/inactive.env"
+                      ;;
+                  esac
 
-                    echo "RECEIVER_EXTRA_FILES<<EOF" >> $GITHUB_ENV
-                    echo "receiver/inactive.env" >> $GITHUB_ENV
-                    echo "README.md" >> $GITHUB_ENV
-                    echo "README.ja_JP.md" >> $GITHUB_ENV
-                    echo "README.ja_EZ.md" >> $GITHUB_ENV
-                    echo "README.zh_CN.md" >> $GITHUB_ENV
-                    echo "EOF" >> $GITHUB_ENV
-                  else
-                    echo "EXTRA_FILES<<EOF" >> $GITHUB_ENV
-                    echo "scripts/install/install.sh" >> $GITHUB_ENV
-                    echo "scripts/uninstall/uninstall.sh" >> $GITHUB_ENV
-                    echo "scripts/config/config.sh" >> $GITHUB_ENV
-                    echo "sender/inactive.env" >> $GITHUB_ENV
-                    echo "README.md" >> $GITHUB_ENV
-                    echo "README.ja_JP.md" >> $GITHUB_ENV
-                    echo "README.ja_EZ.md" >> $GITHUB_ENV
-                    echo "README.zh_CN.md" >> $GITHUB_ENV
-                    echo "EOF" >> $GITHUB_ENV
+                  # Append a newline-separated multiline env var (name + files...).
+                  write_env() {
+                    local name="$1"; shift
+                    {
+                      echo "$name<<EOF"
+                      printf '%s\n' "$@"
+                      echo "EOF"
+                    } >> "$GITHUB_ENV"
+                  }
 
-                    echo "RECEIVER_EXTRA_FILES<<EOF" >> $GITHUB_ENV
-                    echo "scripts/install/install.sh" >> $GITHUB_ENV
-                    echo "scripts/uninstall/uninstall.sh" >> $GITHUB_ENV
-                    echo "scripts/config/config.sh" >> $GITHUB_ENV
-                    echo "receiver/inactive.env" >> $GITHUB_ENV
-                    echo "README.md" >> $GITHUB_ENV
-                    echo "README.ja_JP.md" >> $GITHUB_ENV
-                    echo "README.ja_EZ.md" >> $GITHUB_ENV
-                    echo "README.zh_CN.md" >> $GITHUB_ENV
-                    echo "EOF" >> $GITHUB_ENV
-                  fi
+                  write_env EXTRA_FILES          $sender_files   $readmes
+                  write_env RECEIVER_EXTRA_FILES $receiver_files $readmes
+
+            # --- Release ---
+            # Each artifact is uploaded by a "1" step; the matching "2" step is a
+            # retry that only runs `if: failure()`. The random `sleep`s stagger the
+            # parallel matrix jobs so they don't race to create the same release.
 
             - name: Wait
               shell: bash
