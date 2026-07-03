@@ -26,7 +26,7 @@ pub fn run_gui(app_type: &'static str) {
 
     let native_options = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default()
-            .with_inner_size([800.0, 470.0])
+            .with_inner_size([800.0, 500.0])
             .with_resizable(false)
             .with_maximize_button(false),
         ..Default::default()
@@ -59,11 +59,9 @@ pub fn run_gui(app_type: &'static str) {
 
             // Spawn background thread to request repaint every 1 second
             let ctx_clone = cc.egui_ctx.clone();
-            std::thread::spawn(move || {
-                loop {
-                    std::thread::sleep(std::time::Duration::from_secs(1));
-                    ctx_clone.request_repaint();
-                }
+            std::thread::spawn(move || loop {
+                std::thread::sleep(std::time::Duration::from_secs(1));
+                ctx_clone.request_repaint();
             });
 
             Ok(Box::new(StatusApp::new(app_type)))
@@ -87,7 +85,8 @@ struct StatusApp {
 
 impl StatusApp {
     fn new(app_type: &'static str) -> Self {
-        let (is_installed, is_running, exe_path, config_path) = crate::installer::check_status(app_type);
+        let (is_installed, is_running, exe_path, config_path) =
+            crate::installer::check_status(app_type);
         let is_running_from_install_dir = if let Ok(current_exe) = std::env::current_exe() {
             crate::installer::paths_are_equal(&current_exe, &exe_path)
         } else {
@@ -110,7 +109,8 @@ impl StatusApp {
     }
 
     fn refresh(&mut self) {
-        let (is_installed, is_running, exe_path, config_path) = crate::installer::check_status(self.app_type);
+        let (is_installed, is_running, exe_path, config_path) =
+            crate::installer::check_status(self.app_type);
         self.is_installed = is_installed;
         self.is_running = is_running;
         self.exe_path = exe_path;
