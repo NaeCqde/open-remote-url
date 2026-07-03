@@ -151,6 +151,20 @@ fn main() -> Result<(), Box<dyn Error>> {
             }
         });
 
+        // `-[NSApplication run]` below re-installs AppKit's own default
+        // kAEOpenApplication/kAEReopenApplication handlers during
+        // `-finishLaunching`, silently overwriting the one installed above
+        // (last AEInstallEventHandler call for a given event wins). Left
+        // alone, a later double-click hits AppKit's default handler, which
+        // tries to bring this windowless Accessory process to the front and
+        // gets denied by WindowServer -- so nothing visibly happens. Re-assert
+        // our handler shortly after `-run()` starts, once `-finishLaunching`
+        // has had time to complete.
+        std::thread::spawn(|| {
+            std::thread::sleep(std::time::Duration::from_millis(500));
+            shared::mac_apple_events::install_open_application_handler();
+        });
+
         // Blocks forever on the main thread, driving NSApp's real run loop
         // (not a bare CFRunLoopRun) so Launch Services completes its
         // check-in and can deliver Apple Events to this running instance
