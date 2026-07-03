@@ -3,6 +3,8 @@ pub mod config;
 pub mod gui;
 pub mod installer;
 pub mod installer_utils;
+#[cfg(target_os = "macos")]
+pub mod mac_apple_events;
 pub mod scheme_handler;
 pub mod uninstaller;
 pub mod utils;
