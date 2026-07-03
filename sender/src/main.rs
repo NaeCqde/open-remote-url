@@ -116,12 +116,6 @@ fn main() -> Result<(), Box<dyn Error>> {
     {
         url_event::listen();
         url_event::install_handler();
-        // If this process ends up being the long-lived --daemon (the
-        // instance Launch Services checks in), a plain double-click on the
-        // .app later gets routed to it as kAEOpenApplication/kAEReopenApplication
-        // instead of spawning a fresh process. Handle that by launching a new
-        // instance, which takes the normal GUI branch and shows a window.
-        shared::mac_apple_events::install_open_application_handler();
     }
 
     // macOS daemon: this process is the registered URL scheme handler.

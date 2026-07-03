@@ -43,49 +43,12 @@ fn print_status() {
     println!("{}", status_msg);
 }
 
-fn main() -> Result<(), Box<dyn Error>> {
-    let args: Vec<String> = env::args().collect();
-
-    // macOS daemon: register the "open application" handler unconditionally,
-    // before any GUI/CLI branch decision, the same way the sender does --
-    // see sender/src/main.rs for the full rationale. When this process
-    // becomes the long-lived --daemon (the instance Launch Services checks
-    // in), a plain double-click on the .app is routed to it as
-    // kAEOpenApplication/kAEReopenApplication rather than spawning a fresh
-    // process; without a handler for that, the daemon can't respond and
-    // Finder reports "Application Not Responding". Spawn a new instance
-    // instead, which takes the normal GUI branch and shows a window.
-    #[cfg(target_os = "macos")]
-    if args.iter().any(|a| a == "--daemon") {
-        env_logger::init_from_env(env_logger::Env::new().default_filter_or("info"));
-        shared::config::load_env("receiver");
-        log::info!("Starting open-remote-url-receiver daemon...");
-
-        shared::gui::init_nsapplication_accessory();
-        shared::mac_apple_events::install_open_application_handler();
-
-        std::thread::spawn(|| {
-            let rt = tokio::runtime::Runtime::new()
-                .expect("failed to build tokio runtime");
-            if let Err(e) = rt.block_on(daemon::run()) {
-                eprintln!("daemon error: {}", e);
-                std::process::exit(1);
-            }
-        });
-
-        // Blocks forever on the main thread, driving NSApp's real run loop so
-        // Apple Events (e.g. kAEReopenApplication above) are delivered.
-        shared::gui::run_nsapplication_forever();
-        return Ok(());
-    }
-
-    let rt = tokio::runtime::Runtime::new()?;
-    rt.block_on(async_main(args))
-}
-
-async fn async_main(args: Vec<String>) -> Result<(), Box<dyn Error>> {
+#[tokio::main]
+async fn main() -> Result<(), Box<dyn Error>> {
     env_logger::init_from_env(env_logger::Env::new().default_filter_or("info"));
     shared::config::load_env("receiver");
+
+    let args: Vec<String> = env::args().collect();
 
     shared::cli::setup_gui_or_console("receiver", &args);
 
