@@ -26,7 +26,7 @@ pub fn run_gui(app_type: &'static str) {
 
     let native_options = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default()
-            .with_inner_size([800.0, if app_type == "sender" { 420.0 } else { 500.0 }])
+            .with_inner_size([800.0, if app_type == "sender" { 500.0 } else { 420.0 }])
             .with_resizable(false)
             .with_maximize_button(false),
         ..Default::default()
