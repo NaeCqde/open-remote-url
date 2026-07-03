@@ -73,11 +73,24 @@ jobs:
                   cargo post build --package open_remote_url_receiver --locked --release --target ${{ matrix.platform.target }}
 
             # RISC-V: native build on the RISC-V runner, statically linked.
+            # The runner is a real riscv64 machine running glibc-based Ubuntu, so
+            # there's no prebuilt `riscv64-linux-musl-gcc` cross toolchain for the
+            # musl target (an x86_64-hosted one, like sophgo/host-tools, won't run
+            # here). `musl-tools` gives us a native `musl-gcc` for this arch, which
+            # cc-rs/the linker are pointed at explicitly since its name doesn't
+            # match cc-rs's `<triple>-gcc` naming convention.
+            - name: Install musl toolchain (RISCV only)
+              if: matrix.platform.target == 'riscv64gc-unknown-linux-musl'
+              run: |
+                  sudo apt-get update
+                  sudo apt-get install -y musl-tools
             - name: Build Sender & Receiver with Cargo (RISCV only)
               if: matrix.platform.target == 'riscv64gc-unknown-linux-musl'
               uses: actions-rs/cargo@v1
               env:
                   RUSTFLAGS: "-Ctarget-feature=+crt-static"
+                  CC_riscv64gc_unknown_linux_musl: musl-gcc
+                  CARGO_TARGET_RISCV64GC_UNKNOWN_LINUX_MUSL_LINKER: musl-gcc
               with:
                   use-cross: ${{ matrix.platform.use-cross }}
                   command: build
