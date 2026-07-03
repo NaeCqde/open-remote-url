@@ -116,6 +116,8 @@ fn main() {
     <string>{}</string>
     <key>LSUIElement</key>
     <true/>
+    <key>LSMultipleInstancesProhibited</key>
+    <false/>
 {}
 </dict>
 </plist>

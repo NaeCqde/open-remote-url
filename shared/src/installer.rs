@@ -343,6 +343,8 @@ fn setup_macos_app_bundle(
     <string>{}</string>
     <key>LSUIElement</key>
     <true/>
+    <key>LSMultipleInstancesProhibited</key>
+    <false/>
 </dict>
 </plist>
 "#,
@@ -405,6 +407,8 @@ fn setup_macos_app_bundle(
     <string>{bin_name}</string>
     <key>LSUIElement</key>
     <true/>
+    <key>LSMultipleInstancesProhibited</key>
+    <false/>
 {url_types_block}</dict>
 </plist>
 "#,

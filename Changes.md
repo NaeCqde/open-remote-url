@@ -1,5 +1,11 @@
 # Changes
 
+## [2026-07-04]
+
+### Fixed
+
+- **macOS: double-clicking the installed .app showed "Application Not Responding" while the daemon was already running**, for both sender and receiver. Cause: once the `--daemon` process is checked in with Launch Services, a later double-click is routed to *it* (kAEOpenApplication/kAEReopenApplication) instead of spawning a fresh process, and the daemon can't visibly respond (sender is `Accessory`/windowless, receiver never pumps a run loop). First attempt intercepted that Apple Event on the daemon and spawned a helper process, but this caused a repeated-spawn/focus-stealing loop every few seconds and was reverted. Fixed properly by setting `LSMultipleInstancesProhibited = false` in the generated `Info.plist` (`shared/src/installer.rs`, `shared/post_build.rs`), so Launch Services always spawns a fresh process on double-click instead of routing to the daemon — the fresh process already has a fallback path that shows the GUI/forwards a pending URL, so no daemon-side change is needed. **Requires reinstalling** (Reinstall/Update button, or `--install`) since the plist is written at install time.
+
 ## [2026-07-03]
 
 ### Changed
