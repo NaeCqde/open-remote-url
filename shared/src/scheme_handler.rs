@@ -225,6 +225,8 @@ fn rewrite_info_plist(bundle: &std::path::Path, schemes: &[&str]) -> Result<(), 
     <string>{bin}</string>
     <key>LSUIElement</key>
     <true/>
+    <key>LSMultipleInstancesProhibited</key>
+    <false/>
 {url_types_block}</dict>
 </plist>
 "#
