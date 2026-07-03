@@ -4,5 +4,4 @@
 
 ### Changed
 
-- Renamed "client" to "sender" and "host" to "receiver" throughout the entire codebase (source, configs, READMEs, binary names, bundle IDs, crate names, directory names). No backward compatibility.
-- Renamed env var `RELAY_URL` to `SELF_URL` everywhere (Rust struct field `relay_url` → `self_url`, `.env` files, README docs).
+- **`load_env` now merges all three config sources** instead of stopping at the first match. Priority (highest wins): 3. current directory `.env` > 2. OS config folder `.env` > 1. existing process environment variables. All three are always read; a variable present in a higher-priority source overrides the same variable from a lower-priority source.

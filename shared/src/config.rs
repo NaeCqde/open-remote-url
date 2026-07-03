@@ -220,17 +220,22 @@ fn macos_de_translocate(path: &Path) -> PathBuf {
 }
 
 pub fn load_env(app_type: &str) {
-    // 1. Current working directory .env — highest priority (CLI / dev usage).
-    let cwd_env = env::current_dir().unwrap_or_default().join(".env");
-    if cwd_env.exists() {
-        let _ = dotenvy::from_path_override(&cwd_env);
-        return;
-    }
+    // Load all three sources, lowest priority first, so later calls override earlier ones.
+    // Priority (highest wins): 3. cwd .env  >  2. OS config .env  >  1. existing env vars.
+    //
+    // dotenvy::from_path_override overwrites already-set env vars, so calling in
+    // ascending priority order (1→2→3) means the highest-priority file wins.
 
-    // 2. OS-specific installed config folder.
+    // Source 2: OS-specific installed config folder.
     let installed = get_config_path(app_type);
     if installed.exists() {
         let _ = dotenvy::from_path_override(&installed);
+    }
+
+    // Source 3: current working directory .env — highest priority.
+    let cwd_env = env::current_dir().unwrap_or_default().join(".env");
+    if cwd_env.exists() {
+        let _ = dotenvy::from_path_override(&cwd_env);
     }
 }
 
