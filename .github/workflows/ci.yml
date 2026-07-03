@@ -58,36 +58,29 @@ jobs:
             - uses: Swatinem/rust-cache@v2
               with:
                   key: ${{ matrix.platform.runs-on }}-${{ matrix.platform.target }}
+
             - name: Install cargo-post (macOS only)
               if: "matrix.platform.target == 'aarch64-apple-darwin'"
               run: cargo install cargo-post
-
             - name: Build Sender & Receiver with Cargo post-build (macOS only)
               if: "matrix.platform.target == 'aarch64-apple-darwin'"
               run: |
                   cargo post build --package open_remote_url_sender --locked --release --target ${{ matrix.platform.target }}
                   cargo post build --package open_remote_url_receiver --locked --release --target ${{ matrix.platform.target }}
 
-            - name: Build Sender & Receiver with Cargo or Cross (non-macOS)
-              if: "matrix.platform.target != 'aarch64-apple-darwin' && matrix.platform.target != 'riscv64gc-unknown-linux-musl'"
+            - name: Build Sender & Receiver with Cargo (RISCV only)
+              if: matrix.platform.target == 'riscv64gc-unknown-linux-musl'
               uses: actions-rs/cargo@v1
+              env:
+                  RUSTFLAGS: "-Ctarget-feature=+crt-static"
               with:
                   use-cross: ${{ matrix.platform.use-cross }}
                   command: build
                   args: --manifest-path Cargo.toml --locked --release --target ${{ matrix.platform.target }}
 
-            - name: Install RISCV host-tools
-              if: matrix.platform.target == 'riscv64gc-unknown-linux-musl'
-              shell: bash
-              run: |
-                  git clone https://github.com/sophgo/host-tools --depth=1
-                  echo "$(pwd)/host-tools/gcc/riscv64-linux-musl-x86_64/bin" >> $GITHUB_PATH
-
-            - name: Build Sender & Receiver RISCV with Cargo or Cross
-              if: matrix.platform.target == 'riscv64gc-unknown-linux-musl'
+            - name: Build Sender & Receiver with Cargo or Cross (non-macOS)
+              if: "matrix.platform.target != 'aarch64-apple-darwin' && matrix.platform.target != 'riscv64gc-unknown-linux-musl'"
               uses: actions-rs/cargo@v1
-              env:
-                  RUSTFLAGS: "-Ctarget-feature=+crt-static"
               with:
                   use-cross: ${{ matrix.platform.use-cross }}
                   command: build
