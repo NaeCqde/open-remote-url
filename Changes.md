@@ -1,18 +1,31 @@
 # Changes
 
-## [2026-07-04]
+直近のコミット（`style: apply cargo fmt across the workspace` と、その 1 つ前
+`fix: make the status window scrollable ...`）の内容。以降はコミットごとに
+まっさらにして書き直す。
 
-### Fixed
+## 直したもの
 
-- **macOS: window focus was stolen every few seconds while the sender daemon was running (worse after registering a custom URL scheme).** Root cause: the LaunchAgent plist launches the daemon via `/usr/bin/open -a <bundle> --args --daemon` (needed so Launch Services checks it in as the running bundle instance for Apple Event routing) combined with `KeepAlive = true`. `open` exits immediately after asking Launch Services to start/activate the app — it does not stay running — so launchd saw its child exit right away and relaunched `open -a ...` in a tight loop, each iteration re-activating/focusing the app. Fixed by changing `KeepAlive` to `{SuccessfulExit: false}` (`shared/src/installer.rs`) so launchd only relaunches `open` on a genuine failure, not its normal successful exit.
-- **macOS: double-clicking the installed .app while the daemon was already running showed "Application Not Responding" (sender/receiver) or did nothing visible.** `LSMultipleInstancesProhibited = false` in the generated `Info.plist` turned out to be a no-op here (multiple instances are already the default; Finder still tries to *activate* an existing instance of the same bundle ID rather than spawning fresh on double-click). The real fix: `shared::mac_apple_events::install_open_application_handler()`, installed by both daemons, spawns a fresh instance of the executable when the daemon receives `kAEOpenApplication`/`kAEReopenApplication` (the event Finder sends on double-click); that fresh process takes the normal GUI branch and shows the status window. This was tried once before and reverted because it appeared to cause a focus-stealing loop — that loop was actually the separate `open -a`/`KeepAlive` bug above, now fixed, so this is safe to reapply. Receiver's `--daemon` startup was restructured to match the sender's (tokio on a background thread, `NSApplication` run loop on the main thread) so Apple Events are actually pumped and delivered.
-- **Follow-up: the handler above still didn't fire.** `unified log` (`log show`) confirmed `launchservicesd`/`WindowServer` were denying the *existing* daemon's attempt to bring itself to front (`"tried to be brought forward, but isn't in fPermittedFrontApps"`) instead of a new process ever spawning. Cause: `-[NSApplication run]` (called after `install_open_application_handler()`) re-installs AppKit's own default `kAEOpenApplication`/`kAEReopenApplication` handlers during `-finishLaunching`, silently overwriting ours (last `AEInstallEventHandler` call for a given event wins) — so double-click always fell through to AppKit's default "activate myself" behavior, which a windowless `Accessory` process can't do. Fixed in `sender/src/main.rs` and `receiver/src/main.rs` by re-asserting our handler from a background thread ~500ms after `-run()` starts, once `-finishLaunching` has had time to complete. Verified end-to-end with a new `scripts/test_macos_launch.sh` (installs both apps fresh, `open`s each installed `.app` like a double-click, and checks the process list for a newly spawned non-daemon instance) — both sender and receiver now PASS.
+- **状態ウィンドウが他の DPI スケールでボタン行を見切れさせていた。**
+  ウィンドウを固定サイズかつリサイズ不可（`with_resizable(false)`）にしていたが、
+  すべてのモニタの DPI スケールに一度に合う固定サイズは決められない（姉妹アプリの
+  monsgeek-profile-switcher で実機確認: 1440p / 125% でちょうど収まっていた同じ
+  ウィンドウが 1080p / 100% ではボタン行を切り落としていた）。
+  対処: `shared/src/gui.rs` の `CentralPanel` の中身を
+  `egui::ScrollArea::vertical()` で囲み、`with_resizable(false)` を外した。
+  収まらない内容は黙って切られる代わりにスクロールで届く。
 
-## [2026-07-03]
+## 整形
 
-### Changed
+- ワークスペース全体に `cargo fmt` を適用（13 ファイル、整形のみ・挙動の変更なし）。
+  `receiver/`・`sender/`・`shared/`（`src` と `tests` 両方）。ドキュメントコメント
+  直前の空行の除去、関数引数・FFI 宣言・`format!` 呼び出しの複数行化、構造体リテラルの
+  展開など。
+- `cargo fmt --check` が通ることを確認済み。
 
-- **`load_env` now loads `inactive.env` as the lowest-priority source** when neither the OS config `.env` (installed) nor a cwd `.env` exist. This lets the GUI panel and CLI status display meaningful defaults before installation, using the `inactive.env` bundled next to the app.
-- **Sender GUI panel** now shows two additional rows: `Custom Schemes` (comma-separated list, or "(none)") and `HTTP/HTTPS` (Registered / Not registered).
-- **CLI status output** (`--` / no-arg) now matches the GUI panel exactly for both sender and receiver: always shows Executable, Configuration, and all URL/auth/scheme fields regardless of install state. Executable shows "(Will be set upon installation)" when not installed.
-- Fixed `load_env("client")` typo in `sender/src/main.rs` daemon startup path (was passing wrong app_type "client", now correctly "sender").
+## 確認
+
+- `cargo build` 成功。
+- `cargo test` 11 件パス（`host_daemon_test` 7、`port_bind_test` 4）。
+- いずれも Windows 上で実行。macOS 固有パス（Apple Event、`SecTranslocate`、
+  `.app` バンドル生成）はビルドのみで未実行。
