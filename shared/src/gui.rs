@@ -64,7 +64,6 @@ pub fn run_gui(app_type: &'static str) {
     let native_options = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default()
             .with_inner_size([800.0, if app_type == "sender" { 520.0 } else { 420.0 }])
-            .with_resizable(false)
             .with_maximize_button(false),
         ..Default::default()
     };
@@ -178,6 +177,13 @@ impl eframe::App for StatusApp {
         }
 
         egui::CentralPanel::default().show(ctx, |ui| {
+          // Scrollable: a fixed window size can't be guessed to fit every
+          // monitor's DPI scale at once (confirmed live in a sibling app --
+          // the same window that fit exactly at 1440p/125% cut off the
+          // button rows at 1080p/100%), so content that doesn't fit is
+          // reachable by scrolling instead of silently clipped with no way
+          // to see it.
+          egui::ScrollArea::vertical().show(ui, |ui| {
             ui.add_space(15.0);
 
             ui.vertical_centered(|ui| {
@@ -505,6 +511,7 @@ impl eframe::App for StatusApp {
                     ui.colored_label(text_color, msg);
                 });
             }
+          });
         });
     }
 }
