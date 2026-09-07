@@ -272,7 +272,8 @@ async fn handle_proxy_fallback(
         body: body_base64,
     };
 
-    let mut post_req = state.client
+    let mut post_req = state
+        .client
         .post(format!("{}/proxy", state.self_url))
         .json(&proxy_req);
     if let Some(ref phrase) = state.passphrase {
@@ -292,8 +293,7 @@ async fn handle_proxy_fallback(
                             if k.to_lowercase() != "content-length"
                                 && k.to_lowercase() != "transfer-encoding"
                             {
-                                if let Ok(hname) =
-                                    axum::http::HeaderName::from_bytes(k.as_bytes())
+                                if let Ok(hname) = axum::http::HeaderName::from_bytes(k.as_bytes())
                                 {
                                     if let Ok(hval) = axum::http::HeaderValue::from_str(&v) {
                                         response_builder = response_builder.header(hname, hval);

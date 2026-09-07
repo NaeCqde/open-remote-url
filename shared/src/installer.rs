@@ -2,15 +2,19 @@ use std::env;
 use std::fs;
 use std::path::{Path, PathBuf};
 
+use crate::installer_utils::{
+    install_dir, installed_exe_path, kill_other_daemon_processes, stop_and_unregister,
+};
 pub use crate::uninstaller::uninstall;
-use crate::installer_utils::{install_dir, installed_exe_path, kill_other_daemon_processes, stop_and_unregister};
 
-#[cfg(target_os = "macos")]
-use crate::installer_utils::{app_name, binary_name, launchagent_plist_path, plist_label, LSREGISTER_PATH};
-#[cfg(target_os = "linux")]
-use crate::installer_utils::service_name;
 #[cfg(target_os = "windows")]
 use crate::installer_utils::registry_run_key;
+#[cfg(target_os = "linux")]
+use crate::installer_utils::service_name;
+#[cfg(target_os = "macos")]
+use crate::installer_utils::{
+    app_name, binary_name, launchagent_plist_path, plist_label, LSREGISTER_PATH,
+};
 
 fn copy_script_files(target_dir: &Path) -> Result<(), Box<dyn std::error::Error>> {
     #[cfg(target_os = "linux")]
@@ -70,10 +74,7 @@ fn copy_env_file(app_type: &str) -> Result<(), Box<dyn std::error::Error>> {
 
     if !target_env.exists() {
         if source_env.exists() {
-            log::info!(
-                "Copying inactive.env configuration to {:?}",
-                target_env
-            );
+            log::info!("Copying inactive.env configuration to {:?}", target_env);
             fs::copy(&source_env, &target_env)?;
         } else {
             log::info!("Writing a default .env file");
@@ -157,8 +158,6 @@ pub fn install(app_type: &str) -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
-
-
 pub fn check_status(app_type: &str) -> (bool, bool, PathBuf, PathBuf) {
     let exe_path = installed_exe_path(app_type);
 
@@ -210,8 +209,6 @@ pub fn check_status(app_type: &str) -> (bool, bool, PathBuf, PathBuf) {
     (is_installed, is_running, exe_path, config_path)
 }
 
-
-
 #[cfg(target_os = "windows")]
 fn setup_windows_startup(
     app_type: &str,
@@ -259,7 +256,9 @@ fn setup_windows_browser(binary_path: &Path) -> Result<(), Box<dyn std::error::E
             args.push("/v");
             args.push(value_name);
         }
-        crate::utils::create_no_window(std::process::Command::new("reg")).args(&args).status()?;
+        crate::utils::create_no_window(std::process::Command::new("reg"))
+            .args(&args)
+            .status()?;
     }
 
     Ok(())
@@ -414,7 +413,11 @@ fn setup_macos_app_bundle(
 "#,
             bin_name = binary_name(app_type),
         );
-        log::info!("Writing Info.plist (schemes: {:?}) to {:?}", schemes, info_plist);
+        log::info!(
+            "Writing Info.plist (schemes: {:?}) to {:?}",
+            schemes,
+            info_plist
+        );
         fs::write(&info_plist, plist_content)?;
     }
 

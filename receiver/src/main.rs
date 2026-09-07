@@ -65,8 +65,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         shared::mac_apple_events::install_open_application_handler();
 
         std::thread::spawn(|| {
-            let rt = tokio::runtime::Runtime::new()
-                .expect("failed to build tokio runtime");
+            let rt = tokio::runtime::Runtime::new().expect("failed to build tokio runtime");
             if let Err(e) = rt.block_on(daemon::run()) {
                 eprintln!("daemon error: {}", e);
                 std::process::exit(1);

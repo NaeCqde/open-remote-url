@@ -30,7 +30,8 @@ pub fn is_double_clicked() -> bool {
     #[cfg(target_os = "linux")]
     {
         use std::io::IsTerminal;
-        let has_display = std::env::var("DISPLAY").is_ok() || std::env::var("WAYLAND_DISPLAY").is_ok();
+        let has_display =
+            std::env::var("DISPLAY").is_ok() || std::env::var("WAYLAND_DISPLAY").is_ok();
         return has_display && !std::io::stdout().is_terminal();
     }
 
@@ -69,15 +70,15 @@ pub fn attach_console() {
         unsafe {
             if AttachConsole(0xFFFFFFFF) != 0 {
                 const STD_OUTPUT_HANDLE: u32 = 0xFFFF_FFF5; // -11
-                const STD_ERROR_HANDLE: u32 = 0xFFFF_FFF4;  // -12
-                const STD_INPUT_HANDLE: u32 = 0xFFFF_FFF6;  // -10
-                
+                const STD_ERROR_HANDLE: u32 = 0xFFFF_FFF4; // -12
+                const STD_INPUT_HANDLE: u32 = 0xFFFF_FFF6; // -10
+
                 const GENERIC_READ: u32 = 0x80000000;
                 const GENERIC_WRITE: u32 = 0x40000000;
                 const FILE_SHARE_WRITE: u32 = 2;
                 const FILE_SHARE_READ: u32 = 1;
                 const OPEN_EXISTING: u32 = 3;
-                
+
                 let h_out = CreateFileA(
                     "CONOUT$\0".as_ptr(),
                     GENERIC_WRITE,
@@ -91,7 +92,7 @@ pub fn attach_console() {
                     SetStdHandle(STD_OUTPUT_HANDLE, h_out);
                     SetStdHandle(STD_ERROR_HANDLE, h_out);
                 }
-                
+
                 let h_in = CreateFileA(
                     "CONIN$\0".as_ptr(),
                     GENERIC_READ,

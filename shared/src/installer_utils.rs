@@ -23,7 +23,11 @@ pub(crate) fn kill_other_daemon_processes(app_type: &str) {
 
     #[cfg(any(target_os = "macos", target_os = "linux"))]
     {
-        if let Ok(output) = std::process::Command::new("pgrep").arg("-x").arg(name).output() {
+        if let Ok(output) = std::process::Command::new("pgrep")
+            .arg("-x")
+            .arg(name)
+            .output()
+        {
             if let Ok(text) = String::from_utf8(output.stdout) {
                 for line in text.lines() {
                     if let Ok(pid) = line.trim().parse::<u32>() {

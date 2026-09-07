@@ -100,7 +100,10 @@ pub fn find_inactive_env_path(app_type: &str) -> PathBuf {
             }
         }
     }
-    let p_app_type = env::current_dir().unwrap_or_default().join(app_type).join("inactive.env");
+    let p_app_type = env::current_dir()
+        .unwrap_or_default()
+        .join(app_type)
+        .join("inactive.env");
     if p_app_type.exists() {
         return p_app_type;
     }
@@ -161,39 +164,28 @@ fn macos_de_translocate(path: &Path) -> PathBuf {
     };
 
     unsafe {
-        let cf_str = CFStringCreateWithCString(
-            std::ptr::null(),
-            c_path.as_ptr(),
-            KCF_STRING_ENCODING_UTF8,
-        );
+        let cf_str =
+            CFStringCreateWithCString(std::ptr::null(), c_path.as_ptr(), KCF_STRING_ENCODING_UTF8);
         if cf_str.is_null() {
             return path.to_path_buf();
         }
 
-        let cf_url = CFURLCreateWithFileSystemPath(
-            std::ptr::null(),
-            cf_str,
-            KCF_URL_POSIX_PATH_STYLE,
-            true,
-        );
+        let cf_url =
+            CFURLCreateWithFileSystemPath(std::ptr::null(), cf_str, KCF_URL_POSIX_PATH_STYLE, true);
         CFRelease(cf_str);
         if cf_url.is_null() {
             return path.to_path_buf();
         }
 
         let mut is_translocated = false;
-        let ok = SecTranslocateIsTranslocatedURL(
-            cf_url,
-            &mut is_translocated,
-            std::ptr::null_mut(),
-        );
+        let ok =
+            SecTranslocateIsTranslocatedURL(cf_url, &mut is_translocated, std::ptr::null_mut());
         if !ok || !is_translocated {
             CFRelease(cf_url);
             return path.to_path_buf();
         }
 
-        let original_url =
-            SecTranslocateCreateOriginalPathForURL(cf_url, std::ptr::null_mut());
+        let original_url = SecTranslocateCreateOriginalPathForURL(cf_url, std::ptr::null_mut());
         CFRelease(cf_url);
         if original_url.is_null() {
             return path.to_path_buf();
@@ -260,8 +252,15 @@ pub fn open_dir_in_file_manager(path: &Path) -> Result<(), Box<dyn std::error::E
         if path.extension().map_or(false, |ext| ext == "app") {
             // open -R on a file inside the bundle triggers Finder's package contents view
             let env_path = path.join(".env");
-            let reveal = if env_path.exists() { env_path } else { path.to_path_buf() };
-            std::process::Command::new("open").arg("-R").arg(&reveal).spawn()?;
+            let reveal = if env_path.exists() {
+                env_path
+            } else {
+                path.to_path_buf()
+            };
+            std::process::Command::new("open")
+                .arg("-R")
+                .arg(&reveal)
+                .spawn()?;
         } else {
             std::process::Command::new("open").arg(path).spawn()?;
         }
@@ -330,7 +329,12 @@ impl ReceiverConfig {
         let listen = env::var("LISTEN").unwrap_or_else(|_| "0.0.0.0:40000".to_string());
         let (bind_host, port) = parse_listen(&listen);
         let passphrase = env::var("PASSPHRASE").ok().filter(|s| !s.is_empty());
-        Self { listen, bind_host, port, passphrase }
+        Self {
+            listen,
+            bind_host,
+            port,
+            passphrase,
+        }
     }
 }
 
@@ -353,9 +357,11 @@ impl SenderConfig {
         let strip_slash = |u: String| u.trim_end_matches('/').to_string();
         let listen = env::var("LISTEN").unwrap_or_else(|_| "0.0.0.0:30000".to_string());
         let (sender_host, sender_port) = parse_listen(&listen);
-        let host_url = env::var("HOST_URL").map(strip_slash)
+        let host_url = env::var("HOST_URL")
+            .map(strip_slash)
             .unwrap_or_else(|_| "http://localhost:40000".to_string());
-        let self_url = env::var("SELF_URL").map(strip_slash)
+        let self_url = env::var("SELF_URL")
+            .map(strip_slash)
             .unwrap_or_else(|_| "http://localhost:30000".to_string());
         let passphrase = env::var("PASSPHRASE").ok().filter(|s| !s.is_empty());
         let schemes = env::var("SCHEME")
@@ -367,6 +373,15 @@ impl SenderConfig {
         let register_http = env::var("HTTP")
             .map(|v| v.trim().to_lowercase() != "false")
             .unwrap_or(true);
-        Self { listen, sender_host, sender_port, host_url, self_url, passphrase, schemes, register_http }
+        Self {
+            listen,
+            sender_host,
+            sender_port,
+            host_url,
+            self_url,
+            passphrase,
+            schemes,
+            register_http,
+        }
     }
 }

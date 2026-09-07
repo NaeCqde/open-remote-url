@@ -10,7 +10,6 @@
 /// All tests are platform-agnostic.
 /// Port-binding tests mutate process-wide env vars and run serially.
 /// Port-forwarding tests use ephemeral ports and run in parallel.
-
 use axum::{
     extract::State,
     http::StatusCode,
@@ -78,19 +77,37 @@ async fn client_binds_to_configured_port_and_returns_alive() {
     );
 
     let config = shared::config::SenderConfig::load();
-    assert_eq!(config.sender_port, 39100, "sender_port must match LISTEN in .env");
+    assert_eq!(
+        config.sender_port, 39100,
+        "sender_port must match LISTEN in .env"
+    );
     assert_eq!(config.sender_host, "127.0.0.1");
 
-    let addr: SocketAddr = format!("{}:{}", config.sender_host, config.sender_port).parse().unwrap();
-    let listener = TcpListener::bind(addr).await.expect("failed to bind configured port");
-    let handle = serve(listener, Router::new().route("/", get(|| async { "alive" }))).await;
+    let addr: SocketAddr = format!("{}:{}", config.sender_host, config.sender_port)
+        .parse()
+        .unwrap();
+    let listener = TcpListener::bind(addr)
+        .await
+        .expect("failed to bind configured port");
+    let handle = serve(
+        listener,
+        Router::new().route("/", get(|| async { "alive" })),
+    )
+    .await;
 
     wait_for_port(config.sender_port, Duration::from_secs(2)).await;
 
     let body = reqwest::Client::new()
-        .get(format!("http://{}:{}/", config.sender_host, config.sender_port))
-        .send().await.unwrap()
-        .text().await.unwrap();
+        .get(format!(
+            "http://{}:{}/",
+            config.sender_host, config.sender_port
+        ))
+        .send()
+        .await
+        .unwrap()
+        .text()
+        .await
+        .unwrap();
     assert_eq!(body, "alive");
     handle.abort();
 }
@@ -105,16 +122,28 @@ async fn host_binds_to_configured_port_and_returns_alive() {
     assert_eq!(config.port, 39200, "port must match LISTEN in .env");
     assert_eq!(config.bind_host, "127.0.0.1");
 
-    let addr: SocketAddr = format!("{}:{}", config.bind_host, config.port).parse().unwrap();
-    let listener = TcpListener::bind(addr).await.expect("failed to bind configured port");
-    let handle = serve(listener, Router::new().route("/", get(|| async { "alive" }))).await;
+    let addr: SocketAddr = format!("{}:{}", config.bind_host, config.port)
+        .parse()
+        .unwrap();
+    let listener = TcpListener::bind(addr)
+        .await
+        .expect("failed to bind configured port");
+    let handle = serve(
+        listener,
+        Router::new().route("/", get(|| async { "alive" })),
+    )
+    .await;
 
     wait_for_port(config.port, Duration::from_secs(2)).await;
 
     let body = reqwest::Client::new()
         .get(format!("http://{}:{}/", config.bind_host, config.port))
-        .send().await.unwrap()
-        .text().await.unwrap();
+        .send()
+        .await
+        .unwrap()
+        .text()
+        .await
+        .unwrap();
     assert_eq!(body, "alive");
     handle.abort();
 }
@@ -138,8 +167,7 @@ fn client_relay_app() -> Router {
 async fn client_relay_handler(Json(req): Json<ProxyRequest>) -> impl IntoResponse {
     let body_bytes = BASE64_STANDARD.decode(&req.body).unwrap_or_default();
     let client = reqwest::Client::new();
-    let method =
-        reqwest::Method::from_bytes(req.method.as_bytes()).unwrap_or(reqwest::Method::GET);
+    let method = reqwest::Method::from_bytes(req.method.as_bytes()).unwrap_or(reqwest::Method::GET);
     let url = format!("http://127.0.0.1:{}{}", req.port, req.path_and_query);
 
     let mut builder = client.request(method, &url).body(body_bytes);
@@ -159,7 +187,15 @@ async fn client_relay_handler(Json(req): Json<ProxyRequest>) -> impl IntoRespons
                 }
             }
             let body = BASE64_STANDARD.encode(resp.bytes().await.unwrap_or_default());
-            (StatusCode::OK, Json(ProxyResponse { status, headers, body })).into_response()
+            (
+                StatusCode::OK,
+                Json(ProxyResponse {
+                    status,
+                    headers,
+                    body,
+                }),
+            )
+                .into_response()
         }
         Err(e) => (StatusCode::BAD_GATEWAY, e.to_string()).into_response(),
     }
@@ -189,8 +225,12 @@ async fn proxy_relay_forwards_request_to_backend() {
     let resp: ProxyResponse = reqwest::Client::new()
         .post(format!("http://127.0.0.1:{}/proxy", relay_port))
         .json(&proxy_req)
-        .send().await.unwrap()
-        .json().await.unwrap();
+        .send()
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
 
     assert_eq!(resp.status, 200);
     let body = String::from_utf8(BASE64_STANDARD.decode(&resp.body).unwrap()).unwrap();
@@ -241,9 +281,7 @@ async fn host_ports_handler(
         for &port in &req.ports {
             let relay = self_url.clone();
             tokio::spawn(async move {
-                if let Ok(listener) =
-                    TcpListener::bind(format!("127.0.0.1:{}", port)).await
-                {
+                if let Ok(listener) = TcpListener::bind(format!("127.0.0.1:{}", port)).await {
                     let proxy_app = Router::new().fallback(
                         move |method: axum::http::Method,
                               uri: axum::http::Uri,
@@ -251,8 +289,7 @@ async fn host_ports_handler(
                               body: axum::body::Bytes| {
                             let relay = relay.clone();
                             async move {
-                                host_proxy_fallback(port, method, uri, headers, body, relay)
-                                    .await
+                                host_proxy_fallback(port, method, uri, headers, body, relay).await
                             }
                         },
                     );
@@ -291,11 +328,15 @@ async fn host_proxy_fallback(
     };
 
     let client = reqwest::Client::new();
-    let relay_resp =
-        match client.post(format!("{}/proxy", self_url)).json(&proxy_req).send().await {
-            Ok(r) => r,
-            Err(e) => return (StatusCode::BAD_GATEWAY, e.to_string()).into_response(),
-        };
+    let relay_resp = match client
+        .post(format!("{}/proxy", self_url))
+        .json(&proxy_req)
+        .send()
+        .await
+    {
+        Ok(r) => r,
+        Err(e) => return (StatusCode::BAD_GATEWAY, e.to_string()).into_response(),
+    };
 
     if !relay_resp.status().is_success() {
         return (StatusCode::BAD_GATEWAY, "relay returned error").into_response();
@@ -307,8 +348,7 @@ async fn host_proxy_fallback(
     };
 
     let body_bytes = BASE64_STANDARD.decode(&proxy_resp.body).unwrap_or_default();
-    let mut builder =
-        axum::response::Response::builder().status(proxy_resp.status);
+    let mut builder = axum::response::Response::builder().status(proxy_resp.status);
     for (k, v) in proxy_resp.headers {
         let lower = k.to_lowercase();
         if lower != "content-length" && lower != "transfer-encoding" {
@@ -347,7 +387,9 @@ async fn host_proxy_forwards_through_relay_to_backend() {
     // Host server.
     let host_l = bind_free().await;
     let host_port = port_of(&host_l);
-    let host_state = HostState { _self_url: Arc::new(Mutex::new(None)) };
+    let host_state = HostState {
+        _self_url: Arc::new(Mutex::new(None)),
+    };
     let _host = serve(host_l, host_app(host_state)).await;
 
     wait_for_port(mock_relay_port, Duration::from_secs(2)).await;
@@ -369,7 +411,9 @@ async fn host_proxy_forwards_through_relay_to_backend() {
             action: PortAction::Add,
             self_url: format!("http://127.0.0.1:{}", mock_relay_port),
         })
-        .send().await.unwrap()
+        .send()
+        .await
+        .unwrap()
         .status();
     assert_eq!(status.as_u16(), 200);
 
@@ -379,7 +423,11 @@ async fn host_proxy_forwards_through_relay_to_backend() {
     // Request through the host proxy tunnel.
     let body = reqwest::Client::new()
         .get(format!("http://127.0.0.1:{}/", proxy_port))
-        .send().await.unwrap()
-        .text().await.unwrap();
+        .send()
+        .await
+        .unwrap()
+        .text()
+        .await
+        .unwrap();
     assert_eq!(body, "forwarded response");
 }

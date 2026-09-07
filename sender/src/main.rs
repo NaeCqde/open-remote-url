@@ -32,7 +32,11 @@ fn print_status() {
         config.schemes.join(", ")
     };
 
-    let http_display = if config.register_http { "Registered" } else { "Not registered" };
+    let http_display = if config.register_http {
+        "Registered"
+    } else {
+        "Not registered"
+    };
 
     let status_msg = format!(
         "Open Remote URL - Sender Status\n\n\
@@ -143,8 +147,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         shared::gui::init_nsapplication_accessory();
 
         std::thread::spawn(|| {
-            let rt = tokio::runtime::Runtime::new()
-                .expect("failed to build tokio runtime");
+            let rt = tokio::runtime::Runtime::new().expect("failed to build tokio runtime");
             if let Err(e) = rt.block_on(daemon::run()) {
                 eprintln!("daemon error: {}", e);
                 std::process::exit(1);

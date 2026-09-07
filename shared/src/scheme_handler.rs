@@ -50,10 +50,28 @@ fn reg_add_url_scheme(scheme: &str, open_cmd: &str) {
     let cmd_key = format!("{}\\shell\\open\\command", base);
 
     let _ = crate::utils::create_no_window(std::process::Command::new("reg"))
-        .args(&["add", &base, "/t", "REG_SZ", "/d", &format!("URL:{} Protocol", scheme), "/f"])
+        .args(&[
+            "add",
+            &base,
+            "/t",
+            "REG_SZ",
+            "/d",
+            &format!("URL:{} Protocol", scheme),
+            "/f",
+        ])
         .status();
     let _ = crate::utils::create_no_window(std::process::Command::new("reg"))
-        .args(&["add", &base, "/v", "URL Protocol", "/t", "REG_SZ", "/d", "", "/f"])
+        .args(&[
+            "add",
+            &base,
+            "/v",
+            "URL Protocol",
+            "/t",
+            "REG_SZ",
+            "/d",
+            "",
+            "/f",
+        ])
         .status();
     let _ = crate::utils::create_no_window(std::process::Command::new("reg"))
         .args(&["add", &cmd_key, "/t", "REG_SZ", "/d", open_cmd, "/f"])
@@ -111,7 +129,13 @@ fn unregister_windows_http_https() {
             .status();
     }
     let _ = crate::utils::create_no_window(std::process::Command::new("reg"))
-        .args(&["delete", "HKCU\\Software\\RegisteredApplications", "/v", "OpenRemoteURLSender", "/f"])
+        .args(&[
+            "delete",
+            "HKCU\\Software\\RegisteredApplications",
+            "/v",
+            "OpenRemoteURLSender",
+            "/f",
+        ])
         .status();
 
     log::info!("Unregistered http/https URL scheme handlers");
@@ -132,7 +156,9 @@ fn register_macos(config: &SenderConfig) {
     // Find the .app bundle that contains this executable.
     let bundle_path = find_macos_app_bundle(&exe);
     let Some(bundle) = bundle_path else {
-        log::warn!("scheme_handler: not running from a .app bundle; skipping URL scheme registration");
+        log::warn!(
+            "scheme_handler: not running from a .app bundle; skipping URL scheme registration"
+        );
         return;
     };
 
@@ -177,7 +203,10 @@ fn find_macos_app_bundle(exe: &std::path::Path) -> Option<std::path::PathBuf> {
 }
 
 #[cfg(target_os = "macos")]
-fn rewrite_info_plist(bundle: &std::path::Path, schemes: &[&str]) -> Result<(), Box<dyn std::error::Error>> {
+fn rewrite_info_plist(
+    bundle: &std::path::Path,
+    schemes: &[&str],
+) -> Result<(), Box<dyn std::error::Error>> {
     let info_plist = bundle.join("Contents").join("Info.plist");
 
     let app_type = "sender";
@@ -258,8 +287,12 @@ fn set_default_handler_macos(scheme: &str, bundle_id: &str) {
     // kCFStringEncodingUTF8
     const UTF8: u32 = 0x08000100;
 
-    let Ok(scheme_c) = CString::new(scheme) else { return };
-    let Ok(handler_c) = CString::new(bundle_id) else { return };
+    let Ok(scheme_c) = CString::new(scheme) else {
+        return;
+    };
+    let Ok(handler_c) = CString::new(bundle_id) else {
+        return;
+    };
 
     unsafe {
         let scheme_cf = CFStringCreateWithCString(std::ptr::null(), scheme_c.as_ptr(), UTF8);
@@ -268,7 +301,11 @@ fn set_default_handler_macos(scheme: &str, bundle_id: &str) {
         if !scheme_cf.is_null() && !handler_cf.is_null() {
             let result = LSSetDefaultHandlerForURLScheme(scheme_cf, handler_cf);
             if result != 0 {
-                log::warn!("LSSetDefaultHandlerForURLScheme('{}') returned {}", scheme, result);
+                log::warn!(
+                    "LSSetDefaultHandlerForURLScheme('{}') returned {}",
+                    scheme,
+                    result
+                );
             }
         }
 

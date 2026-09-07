@@ -11,7 +11,6 @@
 ///      images …) hangs indefinitely, exhausting file descriptors and preventing
 ///      the main server from accepting new connections
 ///      → fixed: one client per proxy, connect_timeout=10s, timeout=30s
-
 use axum::{
     extract::State,
     http::{HeaderMap, StatusCode},
@@ -21,12 +20,7 @@ use axum::{
 };
 use base64::prelude::*;
 use shared::{OpenUrlRequest, PortAction, PortsRequest, ProxyRequest, ProxyResponse};
-use std::{
-    collections::HashMap,
-    net::SocketAddr,
-    sync::Arc,
-    time::Duration,
-};
+use std::{collections::HashMap, net::SocketAddr, sync::Arc, time::Duration};
 use tokio::{net::TcpListener, sync::Mutex, task::JoinHandle};
 
 // ── helpers ───────────────────────────────────────────────────────────────────
@@ -116,18 +110,19 @@ async fn handle_ports(
                     Err(_) => continue,
                 };
                 let handle = tokio::spawn(async move {
-                    let app = Router::new().fallback(
-                        move |method: axum::http::Method,
-                              uri: axum::http::Uri,
-                              _headers: axum::http::HeaderMap,
-                              body: axum::body::Bytes| {
-                            let relay = relay.clone();
-                            let client = client.clone();
-                            async move {
-                                proxy_fallback(port, method, uri, body, relay, client).await
-                            }
-                        },
-                    );
+                    let app =
+                        Router::new().fallback(
+                            move |method: axum::http::Method,
+                                  uri: axum::http::Uri,
+                                  _headers: axum::http::HeaderMap,
+                                  body: axum::body::Bytes| {
+                                let relay = relay.clone();
+                                let client = client.clone();
+                                async move {
+                                    proxy_fallback(port, method, uri, body, relay, client).await
+                                }
+                            },
+                        );
                     let _ = axum::serve(listener, app).await;
                 });
                 state.active_proxies.lock().await.insert(port, handle);
@@ -170,16 +165,32 @@ async fn proxy_fallback(
         .await
     {
         Ok(r) => r,
-        Err(e) => return (StatusCode::BAD_GATEWAY, format!("Failed to connect to Sender relay: {}", e)).into_response(),
+        Err(e) => {
+            return (
+                StatusCode::BAD_GATEWAY,
+                format!("Failed to connect to Sender relay: {}", e),
+            )
+                .into_response()
+        }
     };
     let relay_status = relay_resp.status();
     if !relay_status.is_success() {
         let body = relay_resp.text().await.unwrap_or_default();
-        return (StatusCode::BAD_GATEWAY, format!("Sender relay error {}: {}", relay_status, body)).into_response();
+        return (
+            StatusCode::BAD_GATEWAY,
+            format!("Sender relay error {}: {}", relay_status, body),
+        )
+            .into_response();
     }
     let pr: ProxyResponse = match relay_resp.json().await {
         Ok(r) => r,
-        Err(e) => return (StatusCode::BAD_GATEWAY, format!("Relay response parse error: {}", e)).into_response(),
+        Err(e) => {
+            return (
+                StatusCode::BAD_GATEWAY,
+                format!("Relay response parse error: {}", e),
+            )
+                .into_response()
+        }
     };
     let bytes = BASE64_STANDARD.decode(&pr.body).unwrap_or_default();
     axum::response::Response::builder()
@@ -210,8 +221,12 @@ async fn host_health_check_returns_alive() {
 
     let body = reqwest::Client::new()
         .get(format!("http://127.0.0.1:{}/", port))
-        .send().await.unwrap()
-        .text().await.unwrap();
+        .send()
+        .await
+        .unwrap()
+        .text()
+        .await
+        .unwrap();
     assert_eq!(body, "alive");
     _h.abort();
 }
@@ -227,8 +242,12 @@ async fn host_open_url_returns_ok() {
 
     let status = reqwest::Client::new()
         .post(format!("http://127.0.0.1:{}/open", port))
-        .json(&OpenUrlRequest { url: "https://example.com".into() })
-        .send().await.unwrap()
+        .json(&OpenUrlRequest {
+            url: "https://example.com".into(),
+        })
+        .send()
+        .await
+        .unwrap()
         .status();
     assert_eq!(status.as_u16(), 200);
     _h.abort();
@@ -251,8 +270,11 @@ async fn host_open_does_not_block_runtime() {
     let (open_res, health_res) = tokio::time::timeout(
         Duration::from_millis(200),
         futures::future::join(
-            client.post(format!("{}/open", base))
-                .json(&OpenUrlRequest { url: "https://example.com".into() })
+            client
+                .post(format!("{}/open", base))
+                .json(&OpenUrlRequest {
+                    url: "https://example.com".into(),
+                })
                 .send(),
             client.get(format!("{}/", base)).send(),
         ),
@@ -299,8 +321,12 @@ async fn open_ports_open_sequence_host_stays_responsive() {
     // Step 1: POST /open (first URL)
     let s1 = client
         .post(format!("{}/open", base))
-        .json(&OpenUrlRequest { url: "https://first.example.com".into() })
-        .send().await.unwrap()
+        .json(&OpenUrlRequest {
+            url: "https://first.example.com".into(),
+        })
+        .send()
+        .await
+        .unwrap()
         .status();
     assert_eq!(s1.as_u16(), 200, "first /open must return 200");
 
@@ -318,7 +344,9 @@ async fn open_ports_open_sequence_host_stays_responsive() {
             action: PortAction::Add,
             self_url: format!("http://127.0.0.1:{}", blackhole_port),
         })
-        .send().await.unwrap()
+        .send()
+        .await
+        .unwrap()
         .status();
     assert_eq!(s2.as_u16(), 200, "POST /ports must return 200");
 
@@ -344,7 +372,9 @@ async fn open_ports_open_sequence_host_stays_responsive() {
         Duration::from_millis(500),
         client
             .post(format!("{}/open", base))
-            .json(&OpenUrlRequest { url: "https://second.example.com".into() })
+            .json(&OpenUrlRequest {
+                url: "https://second.example.com".into(),
+            })
             .send(),
     )
     .await
@@ -395,14 +425,20 @@ async fn host_ports_add_creates_listener() {
             action: PortAction::Add,
             self_url: format!("http://127.0.0.1:{}", mock_relay_port),
         })
-        .send().await.unwrap();
+        .send()
+        .await
+        .unwrap();
 
     wait_for_port(proxy_port, Duration::from_secs(3)).await;
 
     let body = reqwest::Client::new()
         .get(format!("http://127.0.0.1:{}/", proxy_port))
-        .send().await.unwrap()
-        .text().await.unwrap();
+        .send()
+        .await
+        .unwrap()
+        .text()
+        .await
+        .unwrap();
     assert_eq!(body, "relay ok");
     _h.abort();
 }
@@ -431,8 +467,7 @@ async fn client_relay_handler_no_redirect(Json(req): Json<ProxyRequest>) -> impl
         .timeout(Duration::from_secs(60))
         .build()
         .unwrap();
-    let method =
-        reqwest::Method::from_bytes(req.method.as_bytes()).unwrap_or(reqwest::Method::GET);
+    let method = reqwest::Method::from_bytes(req.method.as_bytes()).unwrap_or(reqwest::Method::GET);
     let url = format!("http://127.0.0.1:{}{}", req.port, req.path_and_query);
 
     match client.request(method, &url).body(body_bytes).send().await {
@@ -445,7 +480,15 @@ async fn client_relay_handler_no_redirect(Json(req): Json<ProxyRequest>) -> impl
                 }
             }
             let body = BASE64_STANDARD.encode(resp.bytes().await.unwrap_or_default());
-            (StatusCode::OK, Json(ProxyResponse { status, headers, body })).into_response()
+            (
+                StatusCode::OK,
+                Json(ProxyResponse {
+                    status,
+                    headers,
+                    body,
+                }),
+            )
+                .into_response()
         }
         Err(e) => (StatusCode::BAD_GATEWAY, e.to_string()).into_response(),
     }
@@ -486,13 +529,27 @@ async fn relay_passes_redirect_without_following() {
     let resp: ProxyResponse = reqwest::Client::new()
         .post(format!("http://127.0.0.1:{}/proxy", relay_port))
         .json(&proxy_req)
-        .send().await.unwrap()
-        .json().await.unwrap();
+        .send()
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
 
     // Must receive the 302 itself, not follow it.
-    assert_eq!(resp.status, 302, "relay must return the redirect status as-is");
-    let location = resp.headers.get("location").map(|s| s.as_str()).unwrap_or("");
-    assert_eq!(location, "/success", "relay must preserve the Location header");
+    assert_eq!(
+        resp.status, 302,
+        "relay must return the redirect status as-is"
+    );
+    let location = resp
+        .headers
+        .get("location")
+        .map(|s| s.as_str())
+        .unwrap_or("");
+    assert_eq!(
+        location, "/success",
+        "relay must preserve the Location header"
+    );
 
     _relay.abort();
 }
@@ -503,10 +560,15 @@ async fn host_proxy_error_message_includes_relay_details() {
     // Relay that always returns 502 with a descriptive body.
     let relay_l = bind_free().await;
     let relay_port = port_of(&relay_l);
-    let error_relay = Router::new()
-        .route("/proxy", post(|| async {
-            (StatusCode::BAD_GATEWAY, "Local connection error: connection refused")
-        }));
+    let error_relay = Router::new().route(
+        "/proxy",
+        post(|| async {
+            (
+                StatusCode::BAD_GATEWAY,
+                "Local connection error: connection refused",
+            )
+        }),
+    );
     let _relay = serve(relay_l, error_relay).await;
 
     let host_l = bind_free().await;
@@ -530,17 +592,25 @@ async fn host_proxy_error_message_includes_relay_details() {
             action: PortAction::Add,
             self_url: format!("http://127.0.0.1:{}", relay_port),
         })
-        .send().await.unwrap();
+        .send()
+        .await
+        .unwrap();
     wait_for_port(proxy_port, Duration::from_secs(3)).await;
 
     let resp = reqwest::Client::new()
         .get(format!("http://127.0.0.1:{}/", proxy_port))
-        .send().await.unwrap();
+        .send()
+        .await
+        .unwrap();
 
     assert_eq!(resp.status().as_u16(), 502);
     let body = resp.text().await.unwrap();
     // Error body must include the relay's status code and message.
-    assert!(body.contains("502"), "error body should include relay status: {}", body);
+    assert!(
+        body.contains("502"),
+        "error body should include relay status: {}",
+        body
+    );
     assert!(
         body.contains("connection refused") || body.contains("Local connection"),
         "error body should include relay message: {}",

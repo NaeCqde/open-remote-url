@@ -1,15 +1,15 @@
+use crate::installer_utils::stop_and_unregister;
 use std::fs;
 use std::path::Path;
-use crate::installer_utils::stop_and_unregister;
 
-#[cfg(any(target_os = "windows", target_os = "linux"))]
-use std::env;
-#[cfg(any(target_os = "windows", target_os = "linux"))]
-use std::path::PathBuf;
 #[cfg(any(target_os = "windows", target_os = "linux"))]
 use crate::installer_utils::binary_name;
 #[cfg(target_os = "macos")]
 use crate::installer_utils::installed_app_bundle_path;
+#[cfg(any(target_os = "windows", target_os = "linux"))]
+use std::env;
+#[cfg(any(target_os = "windows", target_os = "linux"))]
+use std::path::PathBuf;
 
 fn remove_script_files(target_dir: &Path) {
     #[cfg(target_os = "windows")]
