@@ -28,18 +28,10 @@ jobs:
                       runs-on: ubuntu-24.04
                       target: aarch64-unknown-linux-musl
                       use-cross: true
-                    - os-name: Linux-riscv64
-                      runs-on: ubuntu-24.04-riscv
-                      target: riscv64gc-unknown-linux-musl
-                      use-cross: false
 
                     - os-name: Windows-x86_64
                       runs-on: windows-2025
                       target: x86_64-pc-windows-msvc
-                      use-cross: true
-                    - os-name: Windows-aarch64
-                      runs-on: windows-11-arm
-                      target: aarch64-pc-windows-msvc
                       use-cross: true
 
                     - os-name: macOS-aarch64
