@@ -1,10 +1,14 @@
-name: release
+name: ci
 
-permissions:
-    contents: write
-
+# Every push and pull request builds the sender and the receiver for every platform and
+# archives them. The `latest` pre-release is updated by every push to a branch (its tag moves to the pushed commit); a version
+# tag (`git tag v0.1.0 && git push --tags`), or a run started by hand with a tag name, makes the release of that tag. A pull
+# request does not publish anything. Changes to documentation, the license and editor settings alone do not start it.
 on:
     push:
+        branches: ["**"]
+        tags:
+            - "v*"
         paths-ignore:
             - "**.md"
             - "LICENSE*"
@@ -32,38 +36,34 @@ on:
             - ".github/workflows/security-review.yml"
             - ".github/workflows/weekly-security.yml"
             - "**/.DS_Store"
+    workflow_dispatch:
+        inputs:
+            tag:
+                description: "Tag of the release to create (made from the selected branch if it does not exist)"
+                required: true
+
+permissions:
+    contents: read
+
+concurrency:
+    group: ci-${{ github.ref }}
+    cancel-in-progress: true
 
 env:
-    GITHUB_TOKEN: ${{ github.token }}
     RUST_BACKTRACE: 1
 
 jobs:
-    release:
-        name: Release - ${{ matrix.platform.os-name }}
+    package:
+        name: Build - ${{ matrix.platform.os-name }}
         strategy:
             fail-fast: false
             matrix:
                 # https://github.com/actions/runner-images
-                # https://github.com/apps/rise-risc-v-runners-personal
                 platform:
-                    - os-name: Linux-x86_64
-                      runs-on: ubuntu-24.04
-                      target: x86_64-unknown-linux-musl
-                      use-cross: true
-                    - os-name: Linux-aarch64
-                      runs-on: ubuntu-24.04
-                      target: aarch64-unknown-linux-musl
-                      use-cross: true
-
-                    - os-name: Windows-x86_64
-                      runs-on: windows-2025
-                      target: x86_64-pc-windows-msvc
-                      use-cross: true
-
-                    - os-name: macOS-aarch64
-                      runs-on: macos-26
-                      target: aarch64-apple-darwin
-                      use-cross: true
+                    - {os-name: Linux-x86_64, runs-on: ubuntu-24.04, target: x86_64-unknown-linux-musl, ext: "", zip: false}
+                    - {os-name: Linux-aarch64, runs-on: ubuntu-24.04-arm, target: aarch64-unknown-linux-musl, ext: "", zip: false}
+                    - {os-name: Windows-x86_64, runs-on: windows-2025, target: x86_64-pc-windows-msvc, ext: ".exe", zip: true}
+                    - {os-name: macOS-aarch64, runs-on: macos-26, target: aarch64-apple-darwin, ext: "", zip: false}
         runs-on: ${{ matrix.platform.runs-on }}
         steps:
             - uses: actions/checkout@v4
@@ -75,176 +75,94 @@ jobs:
                   profile: minimal
             - uses: Swatinem/rust-cache@v2
               with:
-                  key: ${{ matrix.platform.runs-on }}-${{ matrix.platform.target }}
-
-            # --- Build ---
-            # Each target picks exactly one of the three build steps below.
+                  key: ${{ matrix.platform.target }}
+            # musl-gcc compiles the C parts for the musl targets (built natively, not with cross)
+            - name: Install musl tools
+              if: contains(matrix.platform.target, 'linux-musl')
+              run: sudo apt-get update && sudo apt-get install -y musl-tools
 
             # macOS: cargo-post runs post_build.rs to package the .app bundles.
-            - name: Install cargo-post (macOS only)
-              if: "matrix.platform.target == 'aarch64-apple-darwin'"
-              run: cargo install cargo-post
-            - name: Build Sender & Receiver with Cargo post-build (macOS only)
-              if: "matrix.platform.target == 'aarch64-apple-darwin'"
+            - name: Build (macOS)
+              if: runner.os == 'macOS'
               run: |
+                  cargo install cargo-post
                   cargo post build --package open_remote_url_sender --locked --release --target ${{ matrix.platform.target }}
                   cargo post build --package open_remote_url_receiver --locked --release --target ${{ matrix.platform.target }}
-
-            # RISC-V: native build on the RISC-V runner, statically linked.
-            # The runner is a real riscv64 machine running glibc-based Ubuntu, so
-            # there's no prebuilt `riscv64-linux-musl-gcc` cross toolchain for the
-            # musl target (an x86_64-hosted one, like sophgo/host-tools, won't run
-            # here). `musl-tools` gives us a native `musl-gcc` for this arch, which
-            # cc-rs/the linker are pointed at explicitly since its name doesn't
-            # match cc-rs's `<triple>-gcc` naming convention.
-            - name: Install musl toolchain (RISCV only)
-              if: matrix.platform.target == 'riscv64gc-unknown-linux-musl'
-              run: |
-                  sudo apt-get update
-                  sudo apt-get install -y musl-tools
-            - name: Build Sender & Receiver with Cargo (RISCV only)
-              if: matrix.platform.target == 'riscv64gc-unknown-linux-musl'
-              uses: actions-rs/cargo@v1
+            - name: Build
+              if: runner.os != 'macOS'
+              shell: bash
               env:
-                  RUSTFLAGS: "-Ctarget-feature=+crt-static"
-                  CC_riscv64gc_unknown_linux_musl: musl-gcc
-                  CARGO_TARGET_RISCV64GC_UNKNOWN_LINUX_MUSL_LINKER: musl-gcc
-              with:
-                  use-cross: ${{ matrix.platform.use-cross }}
-                  command: build
-                  args: --manifest-path Cargo.toml --locked --release --target ${{ matrix.platform.target }}
+                  CC_x86_64_unknown_linux_musl: musl-gcc
+                  CC_aarch64_unknown_linux_musl: musl-gcc
+              run: |
+                  if [[ "${{ matrix.platform.target }}" == *linux-musl ]]; then export RUSTFLAGS="-Ctarget-feature=+crt-static"; fi
+                  cargo build --locked --release --target ${{ matrix.platform.target }}
 
-            # Everything else (Linux x86_64/aarch64, Windows): plain Cargo or Cross.
-            - name: Build Sender & Receiver with Cargo or Cross (non-macOS)
-              if: "matrix.platform.target != 'aarch64-apple-darwin' && matrix.platform.target != 'riscv64gc-unknown-linux-musl'"
-              uses: actions-rs/cargo@v1
-              with:
-                  use-cross: ${{ matrix.platform.use-cross }}
-                  command: build
-                  args: --manifest-path Cargo.toml --locked --release --target ${{ matrix.platform.target }}
-
-            # Decide which extra files ship alongside each binary in the release.
-            # The 4 README translations always ship; the rest differ per OS.
-            - name: Determine Extra Files
+            # One archive per program and platform: the executable, what it needs on that OS (macOS: the .app bundle; Windows: the
+            # config; Linux: the install scripts and the config), the READMEs and the license; and the SHA-256 next to it.
+            - name: Package
               shell: bash
               run: |
+                  mkdir out
                   readmes="README.md README.ja_JP.md README.ja_EZ.md README.zh_CN.md LICENSE"
-
-                  case "${{ matrix.platform.target }}" in
-                    *-apple-darwin)
-                      # macOS ships the packaged .app bundles.
-                      sender_files="OpenRemoteURLSender.app.zip sender/inactive.env"
-                      receiver_files="OpenRemoteURLReceiver.app.zip receiver/inactive.env"
-                      ;;
-                    *-pc-windows-*)
-                      # Windows ships just the bare binary + its config.
-                      sender_files="sender/inactive.env"
-                      receiver_files="receiver/inactive.env"
-                      ;;
-                    *)
-                      # Linux (incl. RISC-V) ships the shell install helpers.
-                      scripts="scripts/install/install.sh scripts/uninstall/uninstall.sh scripts/config/config.sh"
-                      sender_files="$scripts sender/inactive.env"
-                      receiver_files="$scripts receiver/inactive.env"
-                      ;;
-                  esac
-
-                  # Append a newline-separated multiline env var (name + files...).
-                  write_env() {
-                    local name="$1"; shift
-                    {
-                      echo "$name<<EOF"
-                      printf '%s\n' "$@"
-                      echo "EOF"
-                    } >> "$GITHUB_ENV"
+                  scripts="scripts/install/install.sh scripts/uninstall/uninstall.sh scripts/config/config.sh"
+                  pack() { # exe dir app-zip
+                    local exe="$1" dir="$2" app="$3" files
+                    case "${{ matrix.platform.target }}" in
+                      *-apple-darwin) files="$app $dir/inactive.env" ;;
+                      *-pc-windows-*) files="$dir/inactive.env" ;;
+                      *) files="$scripts $dir/inactive.env" ;;
+                    esac
+                    local name="$exe-${{ matrix.platform.os-name }}"
+                    mkdir "$name"
+                    cp "target/${{ matrix.platform.target }}/release/$exe${{ matrix.platform.ext }}" "$name/"
+                    for f in $files $readmes; do cp "$f" "$name/"; done
+                    if [ "${{ matrix.platform.zip }}" = "true" ]; then
+                      archive="$name.zip"
+                      "$(cygpath -u "$SYSTEMROOT")/System32/tar.exe" -a -cf "out/$archive" "$name"
+                    else
+                      archive="$name.tar.gz"
+                      tar czf "out/$archive" "$name"
+                    fi
+                    (cd out && if command -v sha256sum > /dev/null; then sha256sum "$archive" > "$archive.sha256"; else shasum -a 256 "$archive" > "$archive.sha256"; fi)
                   }
-
-                  write_env EXTRA_FILES          $sender_files   $readmes
-                  write_env RECEIVER_EXTRA_FILES $receiver_files $readmes
-
-            # --- Release ---
-            # Each artifact is uploaded by a "1" step; the matching "2" step is a
-            # retry that only runs `if: failure()`. The random `sleep`s stagger the
-            # parallel matrix jobs so they don't race to create the same release.
-
-            - name: Wait
-              shell: bash
-              run: sleep $((RANDOM % 20 + 3))
-            - name: Release Sender 1
-              id: release-sender-1
-              uses: houseabsolute/actions-rust-release@v0
-              env:
-                  CRATE_NAME: open_remote_url-sender
+                  pack open-remote-url-sender sender OpenRemoteURLSender.app.zip
+                  pack open-remote-url-receiver receiver OpenRemoteURLReceiver.app.zip
+            - uses: actions/upload-artifact@v4
               with:
-                  working-directory: .
-                  executable-name: open-remote-url-sender
-                  target: ${{ matrix.platform.target }}
-                  extra-files: ${{ env.EXTRA_FILES }}
-                  _force-release-for-testing: true
-                  action-gh-release-parameters: |
-                      {
-                          "repository": "NaeCqde/open_remote_url",
-                          "token": "${{ secrets.GITHUB_TOKEN }}"
-                      }
-            - name: Wait
-              if: failure()
-              shell: bash
-              run: sleep $((RANDOM % 20 + 5))
-            - name: Release Sender 2
-              if: failure()
-              id: release-sender-2
-              uses: houseabsolute/actions-rust-release@v0
-              env:
-                  CRATE_NAME: open_remote_url-sender
-              with:
-                  working-directory: .
-                  executable-name: open-remote-url-sender
-                  target: ${{ matrix.platform.target }}
-                  extra-files: ${{ env.EXTRA_FILES }}
-                  _force-release-for-testing: true
-                  action-gh-release-parameters: |
-                      {
-                          "repository": "NaeCqde/open_remote_url",
-                          "token": "${{ secrets.GITHUB_TOKEN }}"
-                      }
+                  name: open-remote-url-${{ matrix.platform.os-name }}
+                  path: out/*
+                  if-no-files-found: error
 
-            - name: Wait
-              shell: bash
-              run: sleep $((RANDOM % 20 + 3))
-            - name: Release Receiver 1
-              id: release-receiver-1
-              uses: houseabsolute/actions-rust-release@v0
-              env:
-                  CRATE_NAME: open_remote_url_receiver
+    # After the platforms have built. A platform that failed is missing from it.
+    release:
+        name: Release
+        needs: package
+        if: ${{ !cancelled() }}
+        runs-on: ubuntu-24.04
+        permissions:
+            contents: write
+        steps:
+            - uses: actions/download-artifact@v4
               with:
-                  working-directory: .
-                  executable-name: open-remote-url-receiver
-                  target: ${{ matrix.platform.target }}
-                  extra-files: ${{ env.RECEIVER_EXTRA_FILES }}
-                  _force-release-for-testing: true
-                  action-gh-release-parameters: |
-                      {
-                          "repository": "NaeCqde/open_remote_url",
-                          "token": "${{ secrets.GITHUB_TOKEN }}"
-                      }
-            - name: Wait
-              if: failure()
-              shell: bash
-              run: sleep $((RANDOM % 20 + 5))
-            - name: Release Receiver 2
-              if: failure()
-              id: release-receiver-2
-              uses: houseabsolute/actions-rust-release@v0
+                  path: dist
+                  merge-multiple: true
+            - name: List the files
+              run: ls -l dist
+            - name: Move the latest tag
+              if: github.event_name == 'push' && !startsWith(github.ref, 'refs/tags/v')
               env:
-                  CRATE_NAME: open_remote_url_receiver
+                  GH_TOKEN: ${{ github.token }}
+              run: |
+                  gh api -X PATCH "repos/${{ github.repository }}/git/refs/tags/latest" -f sha="${{ github.sha }}" -F force=true \
+                    || gh api -X POST "repos/${{ github.repository }}/git/refs" -f ref="refs/tags/latest" -f sha="${{ github.sha }}"
+            - name: Make the release
+              if: github.event_name != 'pull_request'
+              uses: softprops/action-gh-release@v2
               with:
-                  working-directory: .
-                  executable-name: open-remote-url-receiver
-                  target: ${{ matrix.platform.target }}
-                  extra-files: ${{ env.RECEIVER_EXTRA_FILES }}
-                  _force-release-for-testing: true
-                  action-gh-release-parameters: |
-                      {
-                          "repository": "NaeCqde/open_remote_url",
-                          "token": "${{ secrets.GITHUB_TOKEN }}"
-                      }
+                  tag_name: ${{ inputs.tag || (startsWith(github.ref, 'refs/tags/v') && github.ref_name) || 'latest' }}
+                  target_commitish: ${{ github.sha }}
+                  prerelease: ${{ !(inputs.tag || startsWith(github.ref, 'refs/tags/v')) }}
+                  files: dist/*
+                  generate_release_notes: ${{ inputs.tag != '' || startsWith(github.ref, 'refs/tags/v') }}
+                  fail_on_unmatched_files: true
