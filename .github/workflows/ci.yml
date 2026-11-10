@@ -128,7 +128,7 @@ jobs:
             - name: Determine Extra Files
               shell: bash
               run: |
-                  readmes="README.md README.ja_JP.md README.ja_EZ.md README.zh_CN.md"
+                  readmes="README.md README.ja_JP.md README.ja_EZ.md README.zh_CN.md LICENSE"
 
                   case "${{ matrix.platform.target }}" in
                     *-apple-darwin)
