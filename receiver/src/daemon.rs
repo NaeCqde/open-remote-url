@@ -25,6 +25,7 @@ struct ActiveProxies {
 
 struct ServerState {
     passphrase: Option<String>,
+    allowed_schemes: Vec<String>,
     active_proxies: Arc<Mutex<ActiveProxies>>,
     next_proxy_id: std::sync::atomic::AtomicU64,
 }
@@ -45,8 +46,17 @@ pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
     let port = config.port;
     let passphrase = config.passphrase;
 
+    if passphrase.is_none() {
+        log::warn!(
+            "PASSPHRASE is empty: anybody who can reach {}:{} can send URLs to this Receiver. Set PASSPHRASE.",
+            bind_host,
+            port
+        );
+    }
+
     let state = Arc::new(ServerState {
         passphrase,
+        allowed_schemes: config.allowed_schemes,
         active_proxies: Arc::new(Mutex::new(ActiveProxies {
             map: HashMap::new(),
         })),
@@ -88,16 +98,19 @@ async fn handle_open_url(
     Json(payload): Json<OpenUrlRequest>,
 ) -> impl IntoResponse {
     if let Some(ref phrase) = state.passphrase {
-        if let Some(auth_val) = headers.get("Authorization") {
-            if auth_val != &format!("Bearer {}", phrase) {
-                return (StatusCode::UNAUTHORIZED, "Unauthorized").into_response();
-            }
-        } else {
+        let auth = headers.get("Authorization").and_then(|v| v.to_str().ok());
+        if !shared::bearer_matches(auth, phrase) {
             return (StatusCode::UNAUTHORIZED, "Unauthorized").into_response();
         }
     }
 
     log::info!("Received request to open URL: {}", payload.url);
+
+    // Never hand an arbitrary string (a path, an executable, file:) to the OS.
+    if !shared::is_openable_url(&payload.url, &state.allowed_schemes) {
+        log::warn!("Refused to open a URL that is not http(s) or in ALLOWED_SCHEMES");
+        return (StatusCode::BAD_REQUEST, "URL scheme is not allowed").into_response();
+    }
 
     // open::that() is synchronous and can block while the OS launches the
     // browser.  Run it on a dedicated thread so the tokio runtime stays free
@@ -117,11 +130,8 @@ async fn handle_ports(
     Json(payload): Json<PortsRequest>,
 ) -> impl IntoResponse {
     if let Some(ref phrase) = state.passphrase {
-        if let Some(auth_val) = headers.get("Authorization") {
-            if auth_val != &format!("Bearer {}", phrase) {
-                return (StatusCode::UNAUTHORIZED, "Unauthorized").into_response();
-            }
-        } else {
+        let auth = headers.get("Authorization").and_then(|v| v.to_str().ok());
+        if !shared::bearer_matches(auth, phrase) {
             return (StatusCode::UNAUTHORIZED, "Unauthorized").into_response();
         }
     }

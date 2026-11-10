@@ -102,11 +102,8 @@ async fn handle_open(
     Json(payload): Json<OpenPayload>,
 ) -> impl IntoResponse {
     if let Some(ref phrase) = state.passphrase {
-        if let Some(auth_val) = headers.get("Authorization") {
-            if auth_val != &format!("Bearer {}", phrase) {
-                return (StatusCode::UNAUTHORIZED, "Unauthorized").into_response();
-            }
-        } else {
+        let auth = headers.get("Authorization").and_then(|v| v.to_str().ok());
+        if !shared::bearer_matches(auth, phrase) {
             return (StatusCode::UNAUTHORIZED, "Unauthorized").into_response();
         }
     }
@@ -122,11 +119,8 @@ async fn handle_proxy(
     Json(req): Json<ProxyRequest>,
 ) -> impl IntoResponse {
     if let Some(ref phrase) = state.passphrase {
-        if let Some(auth_val) = headers.get("Authorization") {
-            if auth_val != &format!("Bearer {}", phrase) {
-                return (StatusCode::UNAUTHORIZED, "Unauthorized").into_response();
-            }
-        } else {
+        let auth = headers.get("Authorization").and_then(|v| v.to_str().ok());
+        if !shared::bearer_matches(auth, phrase) {
             return (StatusCode::UNAUTHORIZED, "Unauthorized").into_response();
         }
     }
@@ -138,6 +132,10 @@ async fn handle_proxy(
         req.path_and_query
     );
 
+    // `http://localhost:PORT` + `@evil.com/` would be read as user info and send the request to evil.com.
+    if !req.path_and_query.starts_with('/') {
+        return (StatusCode::BAD_REQUEST, "Invalid path").into_response();
+    }
     let local_url = format!("http://localhost:{}{}", req.port, req.path_and_query);
 
     let body_bytes = match BASE64_STANDARD.decode(&req.body) {
