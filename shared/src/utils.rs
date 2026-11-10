@@ -119,3 +119,38 @@ pub fn create_no_window(mut cmd: std::process::Command) -> std::process::Command
     let _ = &mut cmd;
     cmd
 }
+
+/// Constant-time byte comparison (length is not hidden).
+pub fn secure_eq(a: &[u8], b: &[u8]) -> bool {
+    if a.len() != b.len() {
+        return false;
+    }
+    let mut diff = 0u8;
+    for (x, y) in a.iter().zip(b.iter()) {
+        diff |= x ^ y;
+    }
+    diff == 0
+}
+
+/// True if the `Authorization` header value equals `Bearer <passphrase>` (constant time).
+pub fn bearer_matches(header: Option<&[u8]>, passphrase: &str) -> bool {
+    match header {
+        Some(v) => secure_eq(v, format!("Bearer {}", passphrase).as_bytes()),
+        None => false,
+    }
+}
+
+/// True if the URL may be handed to the OS: http(s) or one of `allowed_schemes`.
+pub fn is_openable_url(url: &str, allowed_schemes: &[String]) -> bool {
+    let url = url.trim();
+    let scheme = match url.split_once(':') {
+        Some((s, _)) if !s.is_empty() => s.to_ascii_lowercase(),
+        _ => return false,
+    };
+    if scheme == "http" || scheme == "https" {
+        return true;
+    }
+    allowed_schemes
+        .iter()
+        .any(|a| a.trim().eq_ignore_ascii_case(&scheme))
+}
