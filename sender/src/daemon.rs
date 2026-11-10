@@ -102,11 +102,10 @@ async fn handle_open(
     Json(payload): Json<OpenPayload>,
 ) -> impl IntoResponse {
     if let Some(ref phrase) = state.passphrase {
-        if let Some(auth_val) = headers.get("Authorization") {
-            if auth_val != &format!("Bearer {}", phrase) {
-                return (StatusCode::UNAUTHORIZED, "Unauthorized").into_response();
-            }
-        } else {
+        if !shared::utils::bearer_matches(
+            headers.get("Authorization").map(|v| v.as_bytes()),
+            phrase,
+        ) {
             return (StatusCode::UNAUTHORIZED, "Unauthorized").into_response();
         }
     }
@@ -122,13 +121,16 @@ async fn handle_proxy(
     Json(req): Json<ProxyRequest>,
 ) -> impl IntoResponse {
     if let Some(ref phrase) = state.passphrase {
-        if let Some(auth_val) = headers.get("Authorization") {
-            if auth_val != &format!("Bearer {}", phrase) {
-                return (StatusCode::UNAUTHORIZED, "Unauthorized").into_response();
-            }
-        } else {
+        if !shared::utils::bearer_matches(
+            headers.get("Authorization").map(|v| v.as_bytes()),
+            phrase,
+        ) {
             return (StatusCode::UNAUTHORIZED, "Unauthorized").into_response();
         }
+    }
+
+    if !req.path_and_query.starts_with('/') {
+        return (StatusCode::BAD_REQUEST, "Invalid path").into_response();
     }
 
     log::info!(

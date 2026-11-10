@@ -322,6 +322,8 @@ pub struct ReceiverConfig {
     pub bind_host: String,
     pub port: u16,
     pub passphrase: Option<String>,
+    /// Extra URL schemes (besides http/https) the Receiver may open.
+    pub allowed_schemes: Vec<String>,
 }
 
 impl ReceiverConfig {
@@ -329,11 +331,18 @@ impl ReceiverConfig {
         let listen = env::var("LISTEN").unwrap_or_else(|_| "0.0.0.0:40000".to_string());
         let (bind_host, port) = parse_listen(&listen);
         let passphrase = env::var("PASSPHRASE").ok().filter(|s| !s.is_empty());
+        let allowed_schemes = env::var("ALLOWED_SCHEMES")
+            .unwrap_or_default()
+            .split(',')
+            .map(|s| s.trim().to_string())
+            .filter(|s| !s.is_empty())
+            .collect();
         Self {
             listen,
             bind_host,
             port,
             passphrase,
+            allowed_schemes,
         }
     }
 }

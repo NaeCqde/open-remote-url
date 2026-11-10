@@ -25,6 +25,7 @@ struct ActiveProxies {
 
 struct ServerState {
     passphrase: Option<String>,
+    allowed_schemes: Vec<String>,
     active_proxies: Arc<Mutex<ActiveProxies>>,
     next_proxy_id: std::sync::atomic::AtomicU64,
 }
@@ -44,9 +45,11 @@ pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
     let bind_host = config.bind_host;
     let port = config.port;
     let passphrase = config.passphrase;
+    let allowed_schemes = config.allowed_schemes;
 
     let state = Arc::new(ServerState {
         passphrase,
+        allowed_schemes,
         active_proxies: Arc::new(Mutex::new(ActiveProxies {
             map: HashMap::new(),
         })),
@@ -88,13 +91,17 @@ async fn handle_open_url(
     Json(payload): Json<OpenUrlRequest>,
 ) -> impl IntoResponse {
     if let Some(ref phrase) = state.passphrase {
-        if let Some(auth_val) = headers.get("Authorization") {
-            if auth_val != &format!("Bearer {}", phrase) {
-                return (StatusCode::UNAUTHORIZED, "Unauthorized").into_response();
-            }
-        } else {
+        if !shared::utils::bearer_matches(
+            headers.get("Authorization").map(|v| v.as_bytes()),
+            phrase,
+        ) {
             return (StatusCode::UNAUTHORIZED, "Unauthorized").into_response();
         }
+    }
+
+    if !shared::utils::is_openable_url(&payload.url, &state.allowed_schemes) {
+        log::warn!("Rejected URL with disallowed scheme: {}", payload.url);
+        return (StatusCode::BAD_REQUEST, "URL scheme is not allowed").into_response();
     }
 
     log::info!("Received request to open URL: {}", payload.url);
@@ -117,11 +124,10 @@ async fn handle_ports(
     Json(payload): Json<PortsRequest>,
 ) -> impl IntoResponse {
     if let Some(ref phrase) = state.passphrase {
-        if let Some(auth_val) = headers.get("Authorization") {
-            if auth_val != &format!("Bearer {}", phrase) {
-                return (StatusCode::UNAUTHORIZED, "Unauthorized").into_response();
-            }
-        } else {
+        if !shared::utils::bearer_matches(
+            headers.get("Authorization").map(|v| v.as_bytes()),
+            phrase,
+        ) {
             return (StatusCode::UNAUTHORIZED, "Unauthorized").into_response();
         }
     }
