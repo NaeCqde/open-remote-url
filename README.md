@@ -100,6 +100,7 @@ PASSPHRASE=some-shared-secret
 |---|---|---|
 | `LISTEN` | Bind address and port (`<host>:<port>`). | `0.0.0.0:40000` |
 | `PASSPHRASE` | Shared passphrase. Leave empty to disable authentication. | _(empty)_ |
+| `ALLOWED_SCHEMES` | Comma-separated extra URL schemes the Receiver may open besides `http://` and `https://` (set it to the same list as the Sender's `SCHEME`, e.g. `vcc,unityhub`). Any other URL is refused with 400. | _(empty)_ |
 
 ### Sender Config (`sender/inactive.env`)
 
