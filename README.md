@@ -1,107 +1,105 @@
 # Open Remote URL
 
-[English](README.md) | [简体中文](README.zh_CN.md) | [日本語 (Original)](README.ja_JP.md) | [日本語 (Non-technical)](README.ja_EZ.md)
+[English](README.en.md) | [简体中文](README.zh_CN.md) | 日本語 (原文) | [日本語 (非技術者向け)](README.ja_EZ.md)
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-> ⚠️ **Note on Translations**
-> Since this document was AI-translated from Japanese, some parts may be inaccurate or difficult to understand. If you find any parts unclear, please translate the [Japanese (Original) version](README.ja_JP.md) and refer to it instead.
+> 💡 **プロジェクトの開発について**
+> このプロジェクトの構想以外の全ては、AIモデル **Gemini 3.5 Flash** と **Claude Sonnet 4.6** によって開発されました。[詳細はプロジェクトの開発についてをご覧ください。](#プロジェクトの開発について)
 
-> 💡 **About Project Development**
-> Everything in this project except the concept was developed by the AI models **Gemini 3.5 Flash** and **Claude Sonnet 4.6**. For details, see [About Project Development](#about-project-development).
+> ⚠️ **現在の動作保証について**
+>
+> - **Linux版は現時点では未テストです。**
+> - **Windows版・macOS版は、URLの転送機能・リバースプロキシ（OAuthコールバック転送）ともに動作確認済みです。**
+> - GitHub ActionsのCI/CDビルド時間の制限を回避するため、完成前にリポジトリをPublicに切り替えました。
 
-> ⚠️ **Current Operational Status**
-> - **The Linux version has not been tested at this time.**
-> - **The Windows and macOS versions have been fully verified for both URL forwarding and reverse proxy (OAuth callback forwarding).**
-> - The repository was made public before completion in order to avoid GitHub Actions CI/CD build time limits.
+Webサイトの表示やOAuthログイン認証を、別のデバイス（受信側）のブラウザに転送して一元管理するシステム。
 
-A system that forwards web page display and OAuth login authentication to a browser on another device (Receiver) for centralized management.
+ローカルネットワーク内または仮想マシン上の**送信側**マシンでのブラウザ起動をインターセプトし、URLを**受信側**マシンへ転送して、受信側のブラウザを起動してWebサイトを表示します。
 
-It intercepts browser open requests on a local **Sender** machine (inside VMs, Docker containers, or secondary PCs), forwards the URL to the **Receiver** machine, and opens the website in the Receiver's browser.
+### 解決する課題・ニーズ
 
-### Solved Problems & Use Cases
+- **仮想マシン (VM) / Dockerコンテナ開発環境でのOAuthログインの苦痛を解消**
+    - Dockerコンテナなどのブラウザ非搭載（またはクリーンな）環境で `wrangler login` などのCLIコマンドを実行すると、ログイン用のブラウザを起動しようとします。通常はURLをコピーして受信側のブラウザで開く必要がありますし、ログイン完了後にブラウザから `http://localhost:8976/oauth/callback` などのローカルポートに対して行われるコールバックを受け取れず、ログインが途中で失敗します。
+    - 本ツールは、送信側環境でURLが開かれたことを検知して受信側で表示するだけでなく、**URLが開かれたタイミングで割り当てられていたポート（15秒前の履歴）およびオープン後に新しく開いたポート（3秒後までチェック）を自動で検知し、受信側から送信側へ一時的なリバースプロキシを自動で確立**します。これにより、受信側のブラウザで認証ボタンを押すだけで、コンテナ内の開発環境が自動でトークンを受信し、何事もなかったかのようにログインが成功します。
 
-- **Smooth OAuth Logins in VM / Docker Container Dev Environments**
-    - When running CLI commands such as `wrangler login` in browser-less (or clean) environments like Docker containers, the tool tries to launch a browser. You would normally need to copy the URL and open it in the Receiver's browser, but the OAuth callback to a local redirect port such as `http://localhost:8976/oauth/callback` cannot be received after login, causing authentication to fail midway.
-    - This tool not only detects when a URL is opened on the Sender and displays it on the Receiver, but also **automatically scans for ports that were allocated at the time the URL was opened (history up to 15 seconds prior) and ports newly opened after the URL was launched (checked for up to 3 seconds), and automatically establishes a temporary reverse proxy from the Receiver to the Sender**. This allows the containerized development environment to automatically receive the authentication token simply by clicking the authentication button in the Receiver's browser, completing the login seamlessly.
+- **2PC（配信・ゲーム）環境でのブラウザセッション・認証情報の一元化**
+    - ゲームPC（送信側）でDiscordやSNSのリンクをクリックした際、普段使いのメインPC（受信側）のブラウザ（ログイン情報、パスワードマネージャー、拡張機能が揃っている環境）で開くことができます。
+    - サブPC側でログイン作業を繰り返す手間を削減し、セキュリティ面でも、パスワードをサブPC側に残さないため安全です。
 
-- **Unified Browser Sessions & Credentials in 2-PC Setups (Streaming/Gaming)**
-    - When clicking Discord or social media links on a gaming/sub PC (Sender), they automatically open in the browser of your main PC (Receiver)—where your login credentials, password manager, and browser extensions are all configured.
-    - This eliminates the need to repeatedly log in on the secondary PC, and is also more secure since login credentials are never stored on the sub PC.
+### ※開発コンセプトについて
 
-### ※ Development Concept
+このプログラムは、開発者の「ゲーム用PCでアカウントにログインするとき、ログイン画面をメインPCで開きたい」という強いニーズから生まれました。このコンセプトや動作を破壊するようなプルリクエストは承認されません。
 
-This tool was born from the developer's strong personal need: "When logging into accounts on a gaming PC, I want the login page to open on my main PC." Pull requests that break or deviate from this core concept and behavior will not be approved.
+## 目次
 
-## Table of Contents
-
-- [How It Works](#how-it-works)
-- [Configuration](#configuration)
-    - [Receiver Config (receiver/.env)](#receiver-config-receiverenv)
-    - [Sender Config (sender/.env)](#sender-config-senderenv)
-- [Installation](#installation)
-- [Status Check](#status-check)
-- [Uninstallation](#uninstallation)
-- [About Project Development](#about-project-development)
+- [動作原理](#動作原理)
+- [環境設定](#環境設定)
+    - [受信側設定 (receiver/.env)](#レシーバー設定-receiverenv)
+    - [送信側設定 (sender/.env)](#センダー設定-senderenv)
+- [インストール](#インストール)
+- [ステータス確認](#ステータス確認)
+- [アンインストール](#アンインストール)
+- [プロジェクトの開発について](#プロジェクトの開発について)
 
 ---
 
-## Flowchart
+## フローチャート
 
-![Flowchart](docs/flowchart.webp)
+![フローチャート](docs/flowchart.webp)
 
-1. **URL Interception**: Intercepts browser open requests when a URL is opened on the Sender.
-2. **URL Display**: The Sender daemon immediately forwards only the URL to the Receiver and opens it in the Receiver's browser.
-3. **Port Detection & Proxy Addition**: Sends the list of ports allocated on the Sender up to 15 seconds before the URL was opened to the Receiver. The Receiver automatically spawns temporary proxy servers for those ports.
-4. **Dynamic Monitoring for Additional Ports**: After the URL is opened, monitors the Sender for 3 seconds for any newly added ports, and spawns additional proxies on the Receiver side if found.
-5. **Automatic Proxy Cleanup**: When a proxied port is closed on the Sender side, a delete request is immediately sent to the Receiver to safely shut down the unnecessary proxy server (any proxies that were not deleted are also automatically removed after a 5-minute timeout).
+1. **URLのインターセプト**: 送信側でURLが開かれた際のブラウザ起動要求をインターセプトします。
+2. **URLの表示**: 送信側デーモンは、即座にURL情報のみを受信へ転送し、受信側のブラウザで開きます。
+3. **ポート検出とプロキシ追加**: URLを開く15秒前までに送信側で割り当てられていたポート一覧を、受信側に送信します。受信側は自動的にそれらのポートに対する一時的なプロキシサーバーを立ち上げます。
+4. **追加ポートの動的監視**: URLを開いた後、3秒間送信側を監視し、新しく追加されたポートがあれば受信側に追加でプロキシを立ち上げます。
+5. **プロキシの自動削除**: 送信側でプロキシ中のポートが閉じられた場合、受信側に対し即座に削除要求を送信し、不要になったプロキシサーバーを安全に破棄します（削除されなかったプロキシも、5分のタイムアウトで自動的に消去されます）。
 
 ---
 
-## Download
+## ダウンロード
 
-[Download the latest release here](https://github.com/NaeCqde/open-remote-url/releases/latest)
+[こちらから最新のリリースをダウンロード](https://github.com/NaeCqde/open-remote-url/releases/latest)
 
-Download the file matching your OS and architecture: the `.app.dmg` for macOS, the executable (`open-remote-url-sender-…`, `open-remote-url-receiver-…`) for Windows and Linux. The config templates (`sender.example.env`, `receiver.example.env`), the Linux scripts, `Changes.md` and `LICENSE` are next to them.
+OSとアーキテクチャにあったファイルをダウンロードしてください（macOS は `.app.dmg`、Windows と Linux は実行ファイル）。設定の雛形（`sender.example.env`、`receiver.example.env`）、Linux 用スクリプト、`Changes.md`、`LICENSE` も同じ場所にあります。
 
-## Configuration
+## 環境設定
 
-Configuration is loaded from system environment variables and the `.env` file.
+設定は、システム環境変数および `.env` ファイルから読み込まれます。
 
-### Priority and Configuration File Search Paths
+### 設定ファイルの優先順位と読み込み場所
 
-At runtime, the configuration file (`.env`) is searched and loaded in the following order of priority:
+プログラム実行時、設定ファイル（`.env`）は以下の優先順位で探索・読み込まれます。
 
-1. **OS-Specific Configuration Folder** (Loaded from here once installed)
+1. **OSごとの設定フォルダ**（インストール済みの場合はこちらから読み込まれます）
     - **Windows**: `%APPDATA%\open-remote-url\<sender|receiver>\.env`
-    - **macOS**: `/Users/<user>/Applications/OpenRemoteURLSender.app/.env` (or `OpenRemoteURLReceiver.app/.env`)
+    - **macOS**: `/Users/<user>/Applications/OpenRemoteURLSender.app/.env`（または `OpenRemoteURLReceiver.app/.env`）
     - **Linux**: `~/.config/open-remote-url/<sender|receiver>/.env`
-2. **Current Working Folder or its Parent Folders**
-    - If the `.env` file does not exist in the OS-specific folder above, the program looks for a `.env` file in the folder where it was executed (or its parent folders). This is useful during development or when running the tool manually.
+2. **実行時のカレントディレクトリまたはその親ディレクトリ**
+    - 上記の設定フォルダに `.env` が存在しない場合、プログラムを実行したディレクトリ（または親ディレクトリ）にある `.env` ファイルが読み込まれます（開発時や手動実行時に便利です）。
 
-_Note: If a setting is defined in both system environment variables and the `.env` file, the value in the **`.env` file takes precedence (overrides)**._
+※システム環境変数と `.env` ファイルの両方で同じ項目が定義されている場合は、 **`.env` ファイルの内容が優先（上書き）されます**。
 
-### Installation Behavior
+### インストール時の動作
 
-The distribution package includes an `.env` template.
-Running the installer automatically copies the `.env` from the installation folder to the OS-specific configuration folder and renames it to `.env`.
+配布パッケージにはテンプレートとして `.env` が同梱されています。
+インストールスクリプトを実行すると、インストール用フォルダ内にある `.env` が上記「OSごとの設定フォルダ」へ `.env` として自動的にコピーされます。
 
-- **Before running the installer**, please open the `.env` file in the package folder using a text editor, customize the settings for your environment, and save it.
-- If the installer is run without `.env` present in the folder, a default `.env` file containing default configuration values will be generated automatically in the configuration folder.
+- **インストールの実行前に**、パッケージフォルダ内にある `.env` をテキストエディタで開き、環境に合わせて設定値をあらかじめ書き換えて保存しておいてください。
+- もし `.env` が存在しない状態でインストールを実行した場合、デフォルトの設定値が記述された `.env` ファイルが設定フォルダ内に自動生成されます。
 
-### Receiver Config (`receiver/.env`)
+### 受信側設定 (`receiver/.env`)
 
 ```env
 LISTEN=0.0.0.0:40000
 PASSPHRASE=some-shared-secret
 ```
 
-| Variable | Description | Default |
-|---|---|---|
-| `LISTEN` | Bind address and port (`<host>:<port>`). | `0.0.0.0:40000` |
-| `PASSPHRASE` | Shared passphrase. Leave empty to disable authentication. | _(empty)_ |
+| 変数         | 説明                                             | デフォルト      |
+| ------------ | ------------------------------------------------ | --------------- |
+| `LISTEN`     | バインドアドレスとポート（`<host>:<port>` 形式） | `0.0.0.0:40000` |
+| `PASSPHRASE` | 共通パスフレーズ。空欄の場合は認証なし。         | _(空)_          |
 
-### Sender Config (`sender/.env`)
+### 送信側設定 (`sender/.env`)
 
 ```env
 LISTEN=0.0.0.0:30000
@@ -112,59 +110,62 @@ SCHEME=
 HTTP=true
 ```
 
-| Variable | Description | Default |
-|---|---|---|
-| `LISTEN` | Bind address and port for the Sender daemon (`<host>:<port>`). | `0.0.0.0:30000` |
-| `HOST_URL` | URL of the remote Receiver daemon. Supports `http://` and `https://` (TLS via rustls, no OpenSSL required). | `http://localhost:40000` |
-| `SELF_URL` | URL that the Receiver uses to call back into this Sender for reverse proxying. Must be reachable from the Receiver machine — use the Sender's LAN/Tailscale IP, not `0.0.0.0`. Supports `http://` and `https://` (rustls). | `http://localhost:30000` |
-| `PASSPHRASE` | Key matching the Receiver's passphrase. Leave empty to disable authentication. | _(empty)_ |
-| `SCHEME` | Comma-separated list of additional URL schemes to register as OS handlers at daemon startup. Example: `vcc,unityhub` | _(empty)_ |
-| `HTTP` | Set to `false` to skip registering `http://` and `https://` handlers (and remove any existing registrations). | `true` |
+| 変数         | 説明                                                                                                                                                                           | デフォルト               |
+| ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------ |
+| `LISTEN`     | 送信側デーモンのバインドアドレスとポート（`<host>:<port>` 形式）                                                                                                         | `0.0.0.0:30000`          |
+| `HOST_URL`   | リモート受信側デーモンのURL。`http://` と `https://`（rustls）に対応。                                                                                                         | `http://localhost:40000` |
+| `SELF_URL`  | 受信側がリバースプロキシのために送信側へ折り返す際のURL。受信側から到達可能なアドレスを指定（LAN IPやTailscale IP等）。こちらも`http://`と`https://`（rustls）に対応。 | `http://localhost:30000` |
+| `PASSPHRASE` | 受信側のパスフレーズと一致するキー。空欄の場合は認証なし。                                                                                                                     | _(空)_                   |
+| `SCHEME`     | OSのURLスキームハンドラとして登録する追加スキームをカンマ区切りで指定。デーモン起動時に自動で登録される。例: `vcc,unityhub`                                                    | _(空)_                   |
+| `HTTP`       | `false` にすると、`http://` および `https://` のハンドラを登録しない（すでに登録済みの場合は削除する）。                                                                       | `true`                   |
 
-#### Custom URL Schemes
+#### カスタムURLスキーム
 
-When a URL whose scheme is listed in `SCHEME` is opened on the Sender OS, the URL is **forwarded directly to the Receiver without port forwarding**, and opened by the appropriate native app on the Receiver (which must have the app installed).
+`SCHEME` に登録したスキームのURLが送信側OSで開かれると、**ポート転送は行わず、URLをそのまま受信側へ転送**して受信側のネイティブアプリで開きます（受信側に対応アプリがインストールされている必要があります）。
 
-For example, with `SCHEME=vcc,unityhub`:
-- User clicks a `vcc://...` link on the Sender (Windows)
-- The URL is sent to the Receiver (macOS) and opened directly in VCC (VRChat Creator Companion) or ALCOM
+例えば `SCHEME=vcc,unityhub` と設定した場合:
+
+- 送信側（Windows）で `vcc://...` のリンクをクリック
+- そのURLが受信側（macOS）の VCC（VRChat Creator Companion）や ALCOM で直接開く
 
 ---
 
-## Installation
+## インストール
 
-The tool is installed to OS-specific directories as detailed below, and is configured to automatically launch the background daemon on OS boot.
+本ツールはOSごとに以下の場所にインストールされ、OS起動時に自動でバックグラウンドデーモンが起動するように設定されます。
 
 - **Windows**: `%LOCALAPPDATA%\Programs\open-remote-url\<sender|receiver>\`
 - **macOS**: `~/Applications/OpenRemoteURL<Sender|Receiver>.app/`
 - **Linux**: `~/.local/bin/open-remote-url/<sender|receiver>/`
 
-To register and start the daemons:
+デーモンを登録・起動するには、以下の手順を行います：
 
-- **Windows**: Double-click the executable (`open-remote-url-sender.exe` or `open-remote-url-receiver.exe`) to open the GUI Control Panel, then click the **Install Service** button.
-- **macOS**: Double-click the app bundle (`OpenRemoteURLSender.app` or `OpenRemoteURLReceiver.app`) to open the GUI Control Panel, then click the **Install Service** button.
+- **Windows**: 実行ファイル（`open-remote-url-sender.exe` または `open-remote-url-receiver.exe`）をダブルクリックしてGUIコントロールパネルを開き、**[Install Service]** ボタンをクリックします。
+- **macOS**: アプリケーション本体（`OpenRemoteURLSender.app` または `OpenRemoteURLReceiver.app`）をダブルクリックしてGUIコントロールパネルを開き、**[Install Service]** ボタンをクリックします。
 - **Linux**:
-  - **Desktop Environment (with GUI)**: Double-click the executable (`open-remote-url-sender` or `open-remote-url-receiver`) to open the GUI Control Panel, then click the **Install Service** button.
-  - **CLI/Headless Environment (without GUI)**: Run the setup script in the release folder: `./install.sh`
+    - **デスクトップ環境（GUIあり）の場合**: 実行ファイル（`open-remote-url-sender` または `open-remote-url-receiver`）をダブルクリックしてGUIコントロールパネルを開き、**[Install Service]** ボタンをクリックします。
+    - **CUI/サーバー環境（GUIなし）の場合**: リリースフォルダ内にあるセットアップスクリプトを実行します: `./install.sh`
 
-_After installation, set **Open Remote URL Sender** as the default web browser in your Sender OS settings:_
-- **Windows**: Settings → Apps → Default apps → Web browser
-- **macOS**: System Settings → Desktop & Dock (or General) → Default web browser → **Open Remote URL Sender**
-- **Linux**: `xdg-settings set default-web-browser open-remote-url-sender.desktop` (or use your DE's settings)
+_インストール完了後、送信側OSの設定において、「デフォルトのWebブラウザ」として **Open Remote URL Sender** を選択してください：_
+
+- **Windows**: 設定 → アプリ → 既定のアプリ → Web ブラウザ
+- **macOS**: システム設定 → デスクトップと Dock（または一般）→ デフォルトの Web ブラウザ → **Open Remote URL Sender**
+- **Linux**: `xdg-settings set default-web-browser open-remote-url-sender.desktop`（またはデスクトップ環境の設定から変更）
 
 ---
 
-## Status Check
+## ステータス確認
 
-Double-clicking the app bundle (or executable) opens the **GUI Control Panel**, which shows:
-- Installation status (Installed / Not Installed)
-- Daemon running status (Running / Stopped) — updates automatically after pressing Install
-- Executable path and configuration file path
-- Buttons: **Install Service**, **Uninstall Service**, **Open Settings Folder**
+アプリ（または実行ファイル）をダブルクリックすると、**GUIコントロールパネル**が開き、以下が確認できます：
 
-You can also run the binary from the command line for a quick status check:
+- インストール状況（Installed / Not Installed）
+- デーモン稼働状況（Running / Stopped） — インストールボタンを押した後に自動更新されます
+- 実行ファイルのパスと設定ファイルのパス
+- ボタン：**Install Service**（インストール）、**Uninstall Service**（アンインストール）、**Open Settings Folder**（設定フォルダを開く）
 
-- **Receiver**:
+コマンドラインから直接実行することでも、簡易的にステータスを確認できます：
+
+- **受信側**:
 
 ```bash
 $ ./open-remote-url-receiver
@@ -174,8 +175,8 @@ Open Remote URL - Receiver Status
 - Installed:  Yes
 - Running:    Yes
 - Listen:     http://0.0.0.0:40000/
-- Executable: /Users/<username>/Applications/OpenRemoteURLReceiver.app/Contents/MacOS/open-remote-url-receiver
-- Config:     /Users/<username>/Applications/OpenRemoteURLReceiver.app/.env
+- Executable: /Users/<ユーザー名>/Applications/OpenRemoteURLReceiver.app/Contents/MacOS/open-remote-url-receiver
+- Config:     /Users/<ユーザー名>/Applications/OpenRemoteURLReceiver.app/.env
 
 [Usage]
 - To install / start receiver:
@@ -185,7 +186,7 @@ Open Remote URL - Receiver Status
   Open GUI Control Panel and click Uninstall, or run `./uninstall.sh` (Linux CLI)
 ```
 
-- **Sender**:
+- **送信側**:
 
 ```bash
 $ ./open-remote-url-sender
@@ -195,10 +196,10 @@ Open Remote URL - Sender Status
 - Installed:  Yes
 - Running:    Yes
 - Listen:     http://0.0.0.0:30000/
-- SELF:       http://192.168.0.3:30000/
+- SELF:      http://192.168.0.3:30000/
 - HOST:       http://192.168.0.2:40000/
-- Executable: /Users/<username>/Applications/OpenRemoteURLSender.app/Contents/MacOS/open-remote-url-sender
-- Config:     /Users/<username>/Applications/OpenRemoteURLSender.app/.env
+- Executable: /Users/<ユーザー名>/Applications/OpenRemoteURLSender.app/Contents/MacOS/open-remote-url-sender
+- Config:     /Users/<ユーザー名>/Applications/OpenRemoteURLSender.app/.env
 
 [Usage]
 - To install / start sender:
@@ -210,28 +211,28 @@ Open Remote URL - Sender Status
 
 ---
 
-## Uninstallation
+## アンインストール
 
-To completely remove autostart registrations, browser associations, plist files, and systemd user service settings and terminate the background process:
+自動起動登録、ブラウザ関連付け、plist、systemdユーザーサービスなどの設定を完全に削除してバックグラウンドプロセスを終了するには、以下の手順を行います：
 
-- **Windows**: Open the GUI Control Panel by double-clicking the executable and click the **Uninstall Service** button.
-- **macOS**: Open the GUI Control Panel by double-clicking the `.app` bundle and click the **Uninstall Service** button.
+- **Windows**: 実行ファイルをダブルクリックしてGUIコントロールパネルを開き、**[Uninstall Service]** ボタンをクリックします。
+- **macOS**: アプリケーション本体（`.app`）をダブルクリックしてGUIコントロールパネルを開き、**[Uninstall Service]** ボタンをクリックします。
 - **Linux**:
-  - **Desktop Environment (with GUI)**: Open the GUI Control Panel by double-clicking the executable and click the **Uninstall Service** button.
-  - **CLI/Headless Environment (without GUI)**: Run `./uninstall.sh` in the release folder.
+    - **デスクトップ環境（GUIあり）の場合**: 実行ファイルをダブルクリックしてGUIコントロールパネルを開き、**[Uninstall Service]** ボタンをクリックします。
+    - **CUI/サーバー環境（GUIなし）の場合**: リリースフォルダ内の `./uninstall.sh` を実行します。
 
 ---
 
-## About Project Development
+## プロジェクトの開発について
 
-Everything in this project except the concept (source code implementation, refactoring, and documentation) was developed and organized by the AI models **Gemini 3.5 Flash** and **Claude Sonnet 4.6**, which have high-level design, coding, and structuring capabilities.
+このプロジェクトの構想以外の全ては、高度な設計・コーディング・構成能力を備えたAIモデル **Gemini 3.5 Flash** と **Claude Sonnet 4.6** によって開発および整理されました。
 
-Additionally, the system architecture diagram (flowchart) was created by feeding a handwritten sketch drawn on iPad Freeform into **Gemini 3.1 Flash (Multimodal Feature)**, which neatly transcribed the text and adjusted the box placement and overall layout (with considerable trial and error in prompt tuning).
+また、システム構成図（フローチャート）の画像は、iPadのフリーボードで描画した手書きのスケッチをベースに、**Gemini 3.1 Flash（マルチモーダル機能）** に読み込ませて文字を綺麗に清書し、枠の配置や全体のレイアウトを調整しながら作成されました（プロンプトの調整には試行錯誤が重ねられています）。
 
-These AI models are available on Antigravity and Antigravity IDE provided by Google.
-This project was completed using the Google One AI Pro plan (approx. $20 / month) and the Claude Pro plan (approx. $25 / month).
+これらのAIモデルは、Googleが提供するAntigravityおよびAntigravity IDE上で無料で使用できます。
+また、本プロジェクトはGoogle One AI Proプラン（月額約3,000円）とClaude Proプラン(月額約3,500円)を利用して完成しました。
 
-- **Development Started (First Prompt)**: 2026/05/26 15:35 JST
-- **Last Updated**: 2026/05/30 JST
+- **開発開始（最初のプロンプト送信）**: 2026/05/26 15:35 JST
+- **最終更新**: 2026/05/30 JST
 
-Note: Since the prompt input and code verification were done in parallel while watching anime, and Gemini's response was extremely fast, it could have been completed in an even shorter time if focused solely on development.
+なお、アニメの鑑賞と並行しながらのプロンプト入力・コード検証であったこと、そしてGeminiの応答が極めて高速であったことから、開発に専念していれば、本来はさらに短い時間で完成させることも可能でした。
