@@ -1,11 +1,11 @@
 # Open Remote URL
 
-[English](README.md) | 简体中文 | [日本語 (原文)](README.ja_JP.md) | [日本語 (非技术人员)](README.ja_EZ.md)
+[English](README.en.md) | 简体中文 | [日本語 (原文)](README.md) | [日本語 (非技术人员)](README.ja_EZ.md)
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
 > ⚠️ **关于翻译的提示**
-> 本文档由日语经 AI 翻译而来，部分内容可能不够准确或难以理解。如果您发现有任何表述不清的地方，请翻译并参考[日文原文](README.ja_JP.md)。
+> 本文档由日语经 AI 翻译而来，部分内容可能不够准确或难以理解。如果您发现有任何表述不清的地方，请翻译并参考[日文原文](README.md)。
 
 > 💡 **关于项目开发**
 > 本项目中除构想以外的全部内容，均由 AI 模型 **Gemini 3.5 Flash** 和 **Claude Sonnet 4.6** 开发。详情请参阅[关于项目开发](#关于项目开发)。

@@ -1,6 +1,6 @@
 # Open Remote URL (簡易解説版)
 
-[English](README.md) | [简体中文](README.zh_CN.md) | [日本語 (原文)](README.ja_JP.md) | 日本語 (非技術者向け)
+[English](README.en.md) | [简体中文](README.zh_CN.md) | [日本語 (原文)](README.md) | 日本語 (非技術者向け)
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
