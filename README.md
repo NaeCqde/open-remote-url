@@ -37,8 +37,8 @@ This tool was born from the developer's strong personal need: "When logging into
 
 - [How It Works](#how-it-works)
 - [Configuration](#configuration)
-    - [Receiver Config (receiver/inactive.env)](#receiver-config-receiverinactiveenv)
-    - [Sender Config (sender/inactive.env)](#sender-config-senderinactiveenv)
+    - [Receiver Config (receiver/.env)](#receiver-config-receiverenv)
+    - [Sender Config (sender/.env)](#sender-config-senderenv)
 - [Installation](#installation)
 - [Status Check](#status-check)
 - [Uninstallation](#uninstallation)
@@ -83,13 +83,13 @@ _Note: If a setting is defined in both system environment variables and the `.en
 
 ### Installation Behavior
 
-The distribution package includes an `inactive.env` template.
-Running the installer automatically copies the `inactive.env` from the installation folder to the OS-specific configuration folder and renames it to `.env`.
+The distribution package includes an `.env` template.
+Running the installer automatically copies the `.env` from the installation folder to the OS-specific configuration folder and renames it to `.env`.
 
-- **Before running the installer**, please open the `inactive.env` file in the package folder using a text editor, customize the settings for your environment, and save it.
-- If the installer is run without `inactive.env` present in the folder, a default `.env` file containing default configuration values will be generated automatically in the configuration folder.
+- **Before running the installer**, please open the `.env` file in the package folder using a text editor, customize the settings for your environment, and save it.
+- If the installer is run without `.env` present in the folder, a default `.env` file containing default configuration values will be generated automatically in the configuration folder.
 
-### Receiver Config (`receiver/inactive.env`)
+### Receiver Config (`receiver/.env`)
 
 ```env
 LISTEN=0.0.0.0:40000
@@ -101,7 +101,7 @@ PASSPHRASE=some-shared-secret
 | `LISTEN` | Bind address and port (`<host>:<port>`). | `0.0.0.0:40000` |
 | `PASSPHRASE` | Shared passphrase. Leave empty to disable authentication. | _(empty)_ |
 
-### Sender Config (`sender/inactive.env`)
+### Sender Config (`sender/.env`)
 
 ```env
 LISTEN=0.0.0.0:30000

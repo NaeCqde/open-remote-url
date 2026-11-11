@@ -15,7 +15,7 @@ Windows と macOS で動作を確認している。Linux は未確認。
 ## 設定
 
 `.env` の探し方: OS 別の設定フォルダー(Windows `%APPDATA%\open-remote-url\<sender|receiver>\.env`、macOS はアプリ内、Linux `~/.config/open-remote-url/<sender|receiver>/.env`)→ 実行したフォルダーとその親。`.env` の値が環境変数より優先される。
-インストール時に、配布物の `inactive.env` を設定フォルダーに `.env` としてコピーする。なければ既定値の `.env` を作る。
+インストール時に、配布物の `.env`(テンプレート)を設定フォルダーの `.env` にコピーする。設定フォルダーにすでに `.env` があれば上書きしない。配布物に `.env` がなければ既定値の `.env` を作る。アンインストールしても設定フォルダーと `.env` は消さない。サービスをインストールしていなくても、設定フォルダーに `.env` があれば設定の表示・読み込みにそれを使う(なければ配布物のテンプレート)。
 
 Receiver: `LISTEN`(既定 `0.0.0.0:40000`)、`PASSPHRASE`(空なら認証なし)、`ALLOWED_SCHEMES`(`http`/`https` のほかに開いてよい URL スキームのカンマ区切り。既定は空)。
 Sender: `LISTEN`(既定 `0.0.0.0:30000`)、`HOST_URL`(Receiver の URL。`http://` か `https://`)、`SELF_URL`(Receiver から Sender へ中継するときの URL)、`PASSPHRASE`、`SCHEME`(OS のハンドラーに登録する追加のスキーム)、`HTTP`(`false` で http/https のハンドラー登録をしない。既定 `true`)。
