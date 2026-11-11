@@ -119,9 +119,9 @@ jobs:
                   pack() { # exe dir app-zip
                     local exe="$1" dir="$2" app="$3" files
                     case "${{ matrix.platform.target }}" in
-                      *-apple-darwin) files="$app $dir/inactive.env" ;;
-                      *-pc-windows-*) files="$dir/inactive.env" ;;
-                      *) files="$scripts $dir/inactive.env" ;;
+                      *-apple-darwin) files="$app $dir/.env" ;;
+                      *-pc-windows-*) files="$dir/.env" ;;
+                      *) files="$scripts $dir/.env" ;;
                     esac
                     local name="$exe-${{ matrix.platform.os-name }}"
                     mkdir "$name"
