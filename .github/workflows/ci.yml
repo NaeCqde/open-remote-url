@@ -104,6 +104,18 @@ jobs:
               shell: bash
               run: |
                   mkdir out
+                  # macOS: a disk image of each .app bundle (OpenRemoteURLSender.app.dmg, OpenRemoteURLReceiver.app.dmg), released next to the archives
+                  if [[ "${{ matrix.platform.target }}" == *-apple-darwin ]]; then
+                    n=0
+                    for app in target/${{ matrix.platform.target }}/release/*.app; do
+                      [ -d "$app" ] || continue
+                      base=$(basename "$app" .app)
+                      hdiutil create -volname "$base" -srcfolder "$app" -ov -format UDZO "out/$base.app.dmg"
+                      (cd out && shasum -a 256 "$base.app.dmg" > "$base.app.dmg.sha256")
+                      n=$((n+1))
+                    done
+                    [ "$n" -gt 0 ] || { echo "no .app bundle was made"; exit 1; }
+                  fi
                   readmes="README.md README.ja_JP.md README.ja_EZ.md README.zh_CN.md LICENSE"
                   scripts="scripts/install/install.sh scripts/uninstall/uninstall.sh scripts/config/config.sh"
                   pack() { # exe dir app-zip
