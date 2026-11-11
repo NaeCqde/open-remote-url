@@ -60,7 +60,7 @@ Webサイトの表示やOAuthログイン認証を、別のデバイス（受信
 
 [こちらから最新のリリースをダウンロード](https://github.com/NaeCqde/open-remote-url/releases/latest)
 
-OSとアーキテクチャにあった.zipファイルをダウンロードしてください。
+OSとアーキテクチャにあったファイルをダウンロードしてください（macOS は `.app.dmg`、Windows と Linux は実行ファイル）。設定の雛形（`sender.example.env`、`receiver.example.env`）、Linux 用スクリプト、`Changes.md`、`LICENSE` も同じ場所にあります。
 
 ## 環境設定
 
