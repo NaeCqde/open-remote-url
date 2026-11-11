@@ -62,7 +62,7 @@ This tool was born from the developer's strong personal need: "When logging into
 
 [Download the latest release here](https://github.com/NaeCqde/open-remote-url/releases/latest)
 
-Download the `.zip` file matching your OS and architecture.
+Download the file matching your OS and architecture: the `.app.dmg` for macOS, the executable (`open-remote-url-sender-…`, `open-remote-url-receiver-…`) for Windows and Linux. The config templates (`sender.example.env`, `receiver.example.env`), the Linux scripts, `Changes.md` and `LICENSE` are next to them.
 
 ## Configuration
 

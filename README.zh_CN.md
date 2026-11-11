@@ -63,7 +63,7 @@
 
 [点击此处下载最新版本](https://github.com/NaeCqde/open-remote-url/releases/latest)
 
-请下载与您的操作系统和架构匹配的 `.zip` 文件。
+请下载与您的操作系统和架构匹配的文件（macOS 为 `.app.dmg`，Windows 和 Linux 为可执行文件）。配置模板（`sender.example.env`、`receiver.example.env`）、Linux 脚本、`Changes.md` 和 `LICENSE` 在同一位置。
 
 ## 配置说明
 
