@@ -159,6 +159,40 @@ async fn handle_ports(
     (StatusCode::OK, "OK").into_response()
 }
 
+/// Binds the temporary proxy's loopback port WITHOUT `SO_REUSEADDR`.
+///
+/// `tokio::net::TcpListener::bind` sets `SO_REUSEADDR` on Unix. On macOS/BSD
+/// that lets `127.0.0.1:PORT` coexist with another program already listening on
+/// `0.0.0.0:PORT` and then win every `localhost` connection -- the proxy would
+/// silently take over a local service's port (it did: Sunshine's 47989/47990).
+/// Without the option the bind fails with `AddrInUse` instead, so the proxy
+/// never shadows a port that is in use.
+///
+/// A port freed only moments ago can still be in TIME_WAIT and refuse a bind
+/// without `SO_REUSEADDR`, so `AddrInUse` is retried briefly before giving up.
+async fn bind_proxy_listener(addr: SocketAddr) -> std::io::Result<tokio::net::TcpListener> {
+    bind_exclusive(addr, 10).await
+}
+
+async fn bind_exclusive(
+    addr: SocketAddr,
+    attempts: u32,
+) -> std::io::Result<tokio::net::TcpListener> {
+    let mut attempt = 1;
+    loop {
+        let result = tokio::net::TcpSocket::new_v4()
+            .and_then(|socket| socket.bind(addr).map(|_| socket))
+            .and_then(|socket| socket.listen(1024));
+        match result {
+            Err(e) if e.kind() == std::io::ErrorKind::AddrInUse && attempt < attempts => {
+                attempt += 1;
+                tokio::time::sleep(Duration::from_secs(1)).await;
+            }
+            other => return other,
+        }
+    }
+}
+
 async fn start_proxy(port: u16, self_url: String, state: Arc<ServerState>) {
     let mut lock = state.active_proxies.lock().await;
     if lock.map.contains_key(&port) {
@@ -200,7 +234,7 @@ async fn start_proxy(port: u16, self_url: String, state: Arc<ServerState>) {
 
         // Use 127.0.0.1 to avoid runtime panic with 127.0.0.1 parse
         let addr: SocketAddr = format!("127.0.0.1:{}", port).parse().unwrap();
-        let listener = match tokio::net::TcpListener::bind(addr).await {
+        let listener = match bind_proxy_listener(addr).await {
             Ok(l) => l,
             Err(e) => {
                 log::error!("Failed to bind proxy to port {}: {}", port, e);
@@ -360,5 +394,27 @@ async fn handle_proxy_fallback(
             )
                 .into_response()
         }
+    }
+}
+
+#[cfg(test)]
+mod bind_tests {
+    use super::*;
+
+    /// Another program listening on 0.0.0.0:PORT (std sets SO_REUSEADDR on Unix,
+    /// like most servers do) must not be shadowed by a 127.0.0.1:PORT proxy.
+    #[tokio::test]
+    async fn proxy_does_not_shadow_a_wildcard_listener() {
+        let other = std::net::TcpListener::bind("0.0.0.0:0").unwrap();
+        let port = other.local_addr().unwrap().port();
+        let addr: SocketAddr = format!("127.0.0.1:{}", port).parse().unwrap();
+        let err = bind_exclusive(addr, 1).await.unwrap_err();
+        assert_eq!(err.kind(), std::io::ErrorKind::AddrInUse);
+    }
+
+    #[tokio::test]
+    async fn proxy_binds_a_free_port() {
+        let addr: SocketAddr = "127.0.0.1:0".parse().unwrap();
+        assert!(bind_exclusive(addr, 1).await.is_ok());
     }
 }
