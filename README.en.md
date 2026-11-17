@@ -110,6 +110,9 @@ SELF_URL=http://<sender_ip>:30000
 PASSPHRASE=some-shared-secret
 SCHEME=
 HTTP=true
+DOMAIN_MODE=exclude
+DOMAINS=
+BROWSER=
 ```
 
 | Variable | Description | Default |
@@ -120,6 +123,11 @@ HTTP=true
 | `PASSPHRASE` | Key matching the Receiver's passphrase. Leave empty to disable authentication. | _(empty)_ |
 | `SCHEME` | Comma-separated list of additional URL schemes to register as OS handlers at daemon startup. Example: `vcc,unityhub` | _(empty)_ |
 | `HTTP` | Set to `false` to skip registering `http://` and `https://` handlers (and remove any existing registrations). | `true` |
+| `DOMAINS` | Comma separated host list that routes `http://` / `https://` URLs: `www.example.com` (exact; write subdomains in full), `*.example.com` (any subdomain, not `example.com` itself), `192.168.1.10` (IP), `10.0.0.0/8` (CIDR). | _(empty)_ |
+| `DOMAIN_MODE` | `exclude`: listed hosts **open in your local browser**, everything else is sent to the Receiver. `include`: only listed hosts are sent, everything else opens locally. An empty `exclude` list sends everything. | `exclude` |
+| `BROWSER` | The browser for local opening. At every start, if the OS default is another browser, the Sender writes it here (overwriting) and takes over; if the Sender already is the default, this value is read. Uninstall restores it as the default (macOS/Linux). macOS: bundle id or app name (`com.kagi.kagimacos` / `Orion`), Linux: `firefox.desktop`, Windows: ProgID or an exe path. | _(empty)_ |
+
+The Sender becomes the OS default for http/https, so URLs that stay local are opened in the *real* default browser (e.g. Orion): the one that was the default just before the Sender took over, launched directly by app (not through the OS default, so there is no loop). Set your real browser as the default before the Sender starts for the first time (it is written to `BROWSER` for you), or name it in `BROWSER` where the Sender already is the default (e.g. Windows; empty = the first registered browser). Uninstall puts `BROWSER` back as the default on macOS/Linux; Windows does not let a program do that, so choose it in Settings > Default apps. `BROWSER` stays in the `.env` after uninstall. If no browser is known or it fails to launch, the URL is sent to the Receiver instead of being lost. Non-http(s) schemes are always sent.
 
 #### Custom URL Schemes
 

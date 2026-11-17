@@ -18,7 +18,7 @@ Windows と macOS で動作を確認している。Linux は未確認。
 インストール時に、配布物の `.env`(テンプレート)を設定フォルダーの `.env` にコピーする。設定フォルダーにすでに `.env` があれば上書きしない。配布物に `.env` がなければ既定値の `.env` を作る。アンインストールしても設定フォルダーと `.env` は消さない。サービスをインストールしていなくても、設定フォルダーに `.env` があれば設定の表示・読み込みにそれを使う(なければ配布物のテンプレート)。
 
 Receiver: `LISTEN`(既定 `0.0.0.0:40000`)、`PASSPHRASE`(空なら認証なし)、`ALLOWED_SCHEMES`(`http`/`https` のほかに開いてよい URL スキームのカンマ区切り。既定は空)。
-Sender: `LISTEN`(既定 `0.0.0.0:30000`)、`HOST_URL`(Receiver の URL。`http://` か `https://`)、`SELF_URL`(Receiver から Sender へ中継するときの URL)、`PASSPHRASE`、`SCHEME`(OS のハンドラーに登録する追加のスキーム)、`HTTP`(`false` で http/https のハンドラー登録をしない。既定 `true`)。
+Sender: `LISTEN`(既定 `0.0.0.0:30000`)、`HOST_URL`(Receiver の URL。`http://` か `https://`)、`SELF_URL`(Receiver から Sender へ中継するときの URL)、`PASSPHRASE`、`SCHEME`(OS のハンドラーに登録する追加のスキーム)、`HTTP`(`false` で http/https のハンドラー登録をしない。既定 `true`)、`DOMAINS`(http/https の URL をホストで振り分ける一覧。カンマ区切りで、`www.example.com`(完全一致。サブドメインまで全部書く)、`*.example.com`(サブドメインすべて。`example.com` 自身は含まない)、`192.168.1.10`(IP)、`10.0.0.0/8`(CIDR))、`DOMAIN_MODE`(`exclude` 既定: 一覧のホストは手元のブラウザで開き、ほかは送る。`include`: 一覧のホストだけ送り、ほかは手元で開く)、`BROWSER`(手元で開くブラウザ。Sender は起動のたびに、OS の既定が Sender 以外のブラウザならそれを `BROWSER` に書き(上書き。インストール済みの `.env` がある場合だけ)、そのうえで http/https を引き継ぐ。既定がすでに Sender なら、`BROWSER`(なければ控え、Windows ではさらに登録済みブラウザの最初の 1 つ)を読む。アンインストールでは、Sender がまだ既定なら `BROWSER`(なければ控え)のブラウザを既定に戻す。macOS はバンドル ID、Linux は `.desktop` の ID が要る。Windows は OS の仕様でプログラムから既定を戻せないので、Sender の登録を消して「既定のアプリ」での選び直しを案内する。`.env` の `BROWSER` はアンインストールでも消さない)。
 
 ## 通信(HTTP / JSON)
 
@@ -45,11 +45,12 @@ Sender: `LISTEN`(既定 `0.0.0.0:30000`)、`HOST_URL`(Receiver の URL。`http:/
 ## Sender の動作(URL を受けてから)
 
 1. OS が URL を Sender に渡す(登録した `http`/`https` と `SCHEME` のスキーム)。
-2. その URL を Receiver の `POST /open` へ送る。
-3. `http`/`https` の URL なら(カスタムスキームは転送なし)、OAuth のコールバック用のポートを探して Receiver に転送を頼む:
+2. `http`/`https` の URL は、ホストを `DOMAINS`/`DOMAIN_MODE` で判定する。「手元で開く」側なら、本来の既定のブラウザ(`BROWSER`、なければ登録の直前に `<設定フォルダー>/local_browser` へ控えたもの。Sender 自身は控えない)をそのアプリを直接指定して起動し(macOS `open -b`、Linux `gtk-launch`、Windows は ProgID のコマンド)、ここで終わる(Receiver へ送らず、ポートの転送もしない)。ブラウザが分からない、または起動に失敗したときは、URL を失わないよう Receiver へ送る。`http`/`https` 以外のスキームは判定せず常に送る。IP アドレスは IP の項目(と CIDR)だけに、名前は名前の項目だけに合う。
+3. 送る URL は Receiver の `POST /open` へ送る。
+4. `http`/`https` の URL なら(カスタムスキームは転送なし)、OAuth のコールバック用のポートを探して Receiver に転送を頼む:
    - 1 秒ごとに待ち受けポートの一覧を取り、15 秒分の履歴を持つ。URL を開く前の 15 秒間に開いたポートを、`POST /ports`(`add`)で Receiver に送る。
    - URL を開いたあとの 3 秒間、1 秒ごとに新しく開いたポートを調べ、あれば同じく送る。
-4. 送ったポートが Sender 側で閉じられたら、`POST /ports`(`delete`)を送る。
+5. 送ったポートが Sender 側で閉じられたら、`POST /ports`(`delete`)を送る。
 
 ## 常駐とインストール
 

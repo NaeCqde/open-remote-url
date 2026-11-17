@@ -27,6 +27,7 @@ pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
     shared::scheme_handler::register_url_schemes();
 
     let config = shared::config::SenderConfig::load();
+    let rules = config.domain_rules();
     let sender_host = config.sender_host;
     let sender_port = config.sender_port;
     let passphrase = config.passphrase;
@@ -57,7 +58,7 @@ pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
     // Start background port-tracking loop
     tokio::spawn(async move {
         if let Err(e) =
-            run_port_tracker(rx_open_url, host_url, sender_port, passphrase, self_url).await
+            run_port_tracker(rx_open_url, host_url, sender_port, passphrase, self_url, rules).await
         {
             log::error!("Port tracker error: {}", e);
         }
@@ -215,6 +216,7 @@ async fn run_port_tracker(
     sender_port: u16,
     passphrase: Option<String>,
     self_url: String,
+    rules: shared::domain_filter::DomainRules,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let mut history: VecDeque<(Instant, HashSet<u16>)> = VecDeque::new();
     let mut interval = tokio::time::interval(Duration::from_millis(500));
@@ -259,6 +261,22 @@ async fn run_port_tracker(
                 }
             }
             Some(url) = rx.recv() => {
+                // http/https URLs whose host DOMAINS says to keep local are opened in the real default browser and
+                // never reach the Receiver (no port forwarding either). If that fails, send it anyway: never drop a URL.
+                if !rules.should_send(&url) {
+                    let local_url = url.clone();
+                    let opened = tokio::task::spawn_blocking(move || shared::local_browser::open_locally(&local_url))
+                        .await
+                        .unwrap_or_else(|e| Err(e.to_string()));
+                    match opened {
+                        Ok(()) => {
+                            log::info!("Opened locally (not sent): {}", url);
+                            continue;
+                        }
+                        Err(e) => log::warn!("Cannot open locally ({}); sending to the Receiver instead: {}", e, url),
+                    }
+                }
+
                 let host_url_clone = host_url.clone();
                 let passphrase_clone = passphrase.clone();
                 let sent_ports_clone = sent_ports.clone();

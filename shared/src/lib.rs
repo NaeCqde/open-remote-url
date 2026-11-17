@@ -1,8 +1,10 @@
 pub mod cli;
 pub mod config;
+pub mod domain_filter;
 pub mod gui;
 pub mod installer;
 pub mod installer_utils;
+pub mod local_browser;
 #[cfg(target_os = "macos")]
 pub mod mac_apple_events;
 pub mod scheme_handler;

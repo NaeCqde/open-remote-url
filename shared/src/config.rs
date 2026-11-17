@@ -259,6 +259,32 @@ pub fn load_env(app_type: &str) {
     }
 }
 
+/// Set `KEY=value` in a `.env` file: replace the line of that key (all other lines, comments and order stay), or append it.
+/// Creates the file when missing.
+pub fn set_env_value(path: &Path, key: &str, value: &str) -> std::io::Result<()> {
+    let old = std::fs::read_to_string(path).unwrap_or_default();
+    let prefix = format!("{key}=");
+    let mut found = false;
+    let mut lines: Vec<String> = old
+        .lines()
+        .map(|l| {
+            if !found && l.trim_start().starts_with(&prefix) {
+                found = true;
+                format!("{key}={value}")
+            } else {
+                l.to_string()
+            }
+        })
+        .collect();
+    if !found {
+        lines.push(format!("{key}={value}"));
+    }
+    if let Some(dir) = path.parent() {
+        std::fs::create_dir_all(dir)?;
+    }
+    std::fs::write(path, lines.join("\n") + "\n")
+}
+
 pub fn open_dir_in_file_manager(path: &Path) -> Result<(), Box<dyn std::error::Error>> {
     #[cfg(target_os = "windows")]
     {
@@ -376,6 +402,16 @@ pub struct SenderConfig {
     pub schemes: Vec<String>,
     /// Whether to register http/https as URL handlers. Default true.
     pub register_http: bool,
+    /// `DOMAIN_MODE`: whether `domains` lists the hosts that are sent (include) or the ones opened locally (exclude).
+    pub domain_mode: crate::domain_filter::DomainMode,
+    /// `DOMAINS`: host patterns (`www.example.com`, `*.example.com`, an IP, a CIDR range) for http/https URLs.
+    pub domains: Vec<String>,
+}
+
+impl SenderConfig {
+    pub fn domain_rules(&self) -> crate::domain_filter::DomainRules {
+        crate::domain_filter::DomainRules::new(self.domain_mode, &self.domains)
+    }
 }
 
 impl SenderConfig {
@@ -399,6 +435,15 @@ impl SenderConfig {
         let register_http = env::var("HTTP")
             .map(|v| v.trim().to_lowercase() != "false")
             .unwrap_or(true);
+        let domain_mode = crate::domain_filter::DomainMode::parse(
+            &env::var("DOMAIN_MODE").unwrap_or_default(),
+        );
+        let domains = env::var("DOMAINS")
+            .unwrap_or_default()
+            .split(',')
+            .map(|s| s.trim().to_string())
+            .filter(|s| !s.is_empty())
+            .collect();
         Self {
             listen,
             sender_host,
@@ -408,6 +453,29 @@ impl SenderConfig {
             passphrase,
             schemes,
             register_http,
+            domain_mode,
+            domains,
         }
+    }
+}
+
+#[cfg(test)]
+mod env_tests {
+    use super::set_env_value;
+
+    #[test]
+    fn set_env_value_replaces_or_appends() {
+        let dir = std::env::temp_dir().join(format!("oru-env-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let f = dir.join(".env");
+        std::fs::write(&f, "# c\nA=1\nBROWSER=\nB=2").unwrap();
+        set_env_value(&f, "BROWSER", "com.x.y").unwrap();
+        assert_eq!(std::fs::read_to_string(&f).unwrap(), "# c\nA=1\nBROWSER=com.x.y\nB=2\n");
+        set_env_value(&f, "NEW", "v").unwrap();
+        assert_eq!(std::fs::read_to_string(&f).unwrap(), "# c\nA=1\nBROWSER=com.x.y\nB=2\nNEW=v\n");
+        let g = dir.join("missing").join(".env");
+        set_env_value(&g, "BROWSER", "z").unwrap();
+        assert_eq!(std::fs::read_to_string(&g).unwrap(), "BROWSER=z\n");
+        let _ = std::fs::remove_dir_all(&dir);
     }
 }

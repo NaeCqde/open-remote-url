@@ -108,6 +108,9 @@ SELF_URL=http://<sender_ip>:30000
 PASSPHRASE=some-shared-secret
 SCHEME=
 HTTP=true
+DOMAIN_MODE=exclude
+DOMAINS=
+BROWSER=
 ```
 
 | 変数         | 説明                                                                                                                                                                           | デフォルト               |
@@ -118,6 +121,9 @@ HTTP=true
 | `PASSPHRASE` | 受信側のパスフレーズと一致するキー。空欄の場合は認証なし。                                                                                                                     | _(空)_                   |
 | `SCHEME`     | OSのURLスキームハンドラとして登録する追加スキームをカンマ区切りで指定。デーモン起動時に自動で登録される。例: `vcc,unityhub`                                                    | _(空)_                   |
 | `HTTP`       | `false` にすると、`http://` および `https://` のハンドラを登録しない（すでに登録済みの場合は削除する）。                                                                       | `true`                   |
+| `DOMAINS`    | `http://` / `https://` をホストで振り分ける一覧（カンマ区切り）。`www.example.com`（完全一致。サブドメインまで全部書く）、`*.example.com`（サブドメインすべて。`example.com` 自身は含まない）、`192.168.1.10`（IP）、`10.0.0.0/8`（CIDR）。 | _(空)_                   |
+| `DOMAIN_MODE` | `exclude`: 一覧のホストは**手元のブラウザで開き**、それ以外は受信側へ送る。`include`: 一覧のホストだけ受信側へ送り、それ以外は手元で開く。一覧が空の `exclude` はすべて送る。 | `exclude`                |
+| `BROWSER`    | 手元で開くときのブラウザ。送信側は起動のたびに、OS の既定が送信側以外のブラウザならその値を自動で書き込む（上書き）。すでに送信側が既定なら、この値を読む。アンインストール時に既定へ戻す（macOS/Linux）。macOS: バンドル ID かアプリ名（`com.kagi.kagimacos` / `Orion`）、Linux: `firefox.desktop`、Windows: ProgID か exe のパス。 | _(空)_                   |
 
 #### カスタムURLスキーム
 
@@ -127,6 +133,10 @@ HTTP=true
 
 - 送信側（Windows）で `vcc://...` のリンクをクリック
 - そのURLが受信側（macOS）の VCC（VRChat Creator Companion）や ALCOM で直接開く
+
+#### 手元で開くブラウザ（本来の既定のブラウザ）
+
+送信側は http/https の既定のハンドラになるので、OS の「既定のブラウザ」は送信側に変わります。手元で開く URL は、**送信側が引き継ぐ直前の既定のブラウザ**（例: Orion）を、OS の既定を経由せずアプリを直接指定して開きます（そのため送信側へ戻るループは起きません）。送信側が既定になる前に、本来のブラウザ（Orion など）を既定にしてから起動してください。そのブラウザが `BROWSER` に自動で書かれます。すでに送信側が既定の環境（Windows など）では `BROWSER` を読むので、そこに指定してください（Windows は ProgId か exe のパス。空なら登録済みブラウザの最初の 1 つ）。アンインストールすると、macOS/Linux は `BROWSER` のブラウザを既定に戻します。Windows は OS の仕様でプログラムから戻せないので、「既定のアプリ」で選び直してください。`.env` の `BROWSER` はアンインストールしても残ります。ブラウザが分からない・起動に失敗したときは、URL を失わないよう受信側へ送ります。`http`/`https` 以外のスキームは常に受信側へ送ります。
 
 ---
 

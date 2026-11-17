@@ -6,6 +6,12 @@ use crate::config::SenderConfig;
 pub fn register_url_schemes() {
     let config = SenderConfig::load();
 
+    // Before the Sender replaces the OS default for http/https, remember the real browser (for URLs that DOMAINS
+    // says to open locally). A no-op when the Sender is already the default.
+    if config.register_http {
+        crate::local_browser::remember_default_browser();
+    }
+
     #[cfg(target_os = "windows")]
     register_windows(&config);
 
@@ -282,7 +288,7 @@ extern "C" {
 }
 
 #[cfg(target_os = "macos")]
-fn set_default_handler_macos(scheme: &str, bundle_id: &str) {
+pub(crate) fn set_default_handler_macos(scheme: &str, bundle_id: &str) {
     use std::ffi::CString;
     // kCFStringEncodingUTF8
     const UTF8: u32 = 0x08000100;
