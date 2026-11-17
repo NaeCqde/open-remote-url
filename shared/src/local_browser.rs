@@ -255,4 +255,15 @@ mod tests {
         assert!(open_locally("/Applications/Calculator.app").is_err());
         assert!(open_locally("steam://run/1").is_err());
     }
+
+    /// Manual probe for a real machine (`cargo test -p shared --lib probe_real_launch -- --ignored --nocapture`).
+    /// Needs `ORU_PROBE_BROWSER` (what `BROWSER` would hold) and optionally `ORU_PROBE_URL`.
+    #[test]
+    #[ignore]
+    fn probe_real_launch() {
+        eprintln!("DETECTED={:?}", current_default_browser());
+        let browser = std::env::var("ORU_PROBE_BROWSER").expect("set ORU_PROBE_BROWSER");
+        let url = std::env::var("ORU_PROBE_URL").unwrap_or_else(|_| "https://example.com/open-remote-url-probe".into());
+        eprintln!("LAUNCH={:?}", launch(&browser, &url));
+    }
 }
