@@ -288,7 +288,7 @@ extern "C" {
 }
 
 #[cfg(target_os = "macos")]
-fn set_default_handler_macos(scheme: &str, bundle_id: &str) {
+pub(crate) fn set_default_handler_macos(scheme: &str, bundle_id: &str) {
     use std::ffi::CString;
     // kCFStringEncodingUTF8
     const UTF8: u32 = 0x08000100;

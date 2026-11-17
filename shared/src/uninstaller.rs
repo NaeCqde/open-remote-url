@@ -51,6 +51,12 @@ fn remove_dir_if_empty_or_ds_store(dir: &Path) {
 }
 
 pub fn uninstall(app_type: &str) -> Result<(), Box<dyn std::error::Error>> {
+    // The Sender took over http/https: give it back to the real browser first (BROWSER stays in the .env).
+    if app_type == "sender" {
+        let msg = crate::local_browser::restore_default_browser();
+        log::info!("{}", msg);
+        println!("{}", msg);
+    }
     let _ = stop_and_unregister(app_type);
 
     #[cfg(target_os = "windows")]
