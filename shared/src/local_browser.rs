@@ -226,11 +226,29 @@ fn launch(_browser: &str, _url: &str) -> Result<(), String> {
     Err("unsupported platform".into())
 }
 
+/// Start the launcher without waiting for the browser. Some launchers (a browser that was not running, on Windows) stay
+/// alive until the browser is closed, so waiting for exit would block for minutes. A launcher that fails does so at
+/// once; give it a short moment to, then treat a still-running one as success and reap it in the background.
 fn run(mut cmd: std::process::Command) -> Result<(), String> {
-    match cmd.status() {
-        Ok(s) if s.success() => Ok(()),
-        Ok(s) => Err(format!("browser launcher exited with {}", s)),
-        Err(e) => Err(format!("cannot start the browser launcher: {}", e)),
+    let mut child = cmd
+        .spawn()
+        .map_err(|e| format!("cannot start the browser launcher: {}", e))?;
+    let deadline = std::time::Instant::now() + std::time::Duration::from_millis(1500);
+    loop {
+        match child.try_wait() {
+            Ok(Some(s)) if s.success() => return Ok(()),
+            Ok(Some(s)) => return Err(format!("browser launcher exited with {}", s)),
+            Ok(None) if std::time::Instant::now() < deadline => {
+                std::thread::sleep(std::time::Duration::from_millis(50))
+            }
+            Ok(None) => {
+                std::thread::spawn(move || {
+                    let _ = child.wait();
+                });
+                return Ok(());
+            }
+            Err(e) => return Err(format!("cannot check the browser launcher: {}", e)),
+        }
     }
 }
 
@@ -247,6 +265,33 @@ mod tests {
         assert!(!is_own("com.kagi.kagimacos"));
         // the Receiver's id is a different program and is a legitimate (if odd) choice
         assert!(!is_own("quest.nae.open-remote-url.receiver"));
+    }
+
+    #[test]
+    fn run_does_not_wait_for_a_long_lived_launcher() {
+        #[cfg(unix)]
+        let (prog, args) = ("sleep", vec!["20"]);
+        #[cfg(windows)]
+        let (prog, args) = ("ping", vec!["-n", "20", "127.0.0.1"]);
+        let mut c = std::process::Command::new(prog);
+        c.args(args);
+        let t = std::time::Instant::now();
+        assert!(run(c).is_ok());
+        assert!(t.elapsed() < std::time::Duration::from_secs(5));
+    }
+
+    #[test]
+    fn run_reports_a_failing_launcher() {
+        #[cfg(unix)]
+        let c = std::process::Command::new("false");
+        #[cfg(windows)]
+        let c = {
+            let mut c = std::process::Command::new("cmd");
+            c.args(["/C", "exit 1"]);
+            c
+        };
+        assert!(run(c).is_err());
+        assert!(run(std::process::Command::new("/definitely/not/a/program")).is_err());
     }
 
     #[test]

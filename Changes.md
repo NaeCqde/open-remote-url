@@ -12,6 +12,14 @@
 - `shared/src/domain_filter.rs`, `shared/src/local_browser.rs` (unit tests included), status output, `sender/.env`,
   `docs/SPEC.md`, `README.md`, `README.en.md`.
 
-## Not verified
+## Fixed
 
-- Windows and Linux browser detection/launch (written, not run). macOS detection and launch were run against Orion.
+- Launching the local browser no longer waits for the launcher to exit. On Windows a browser that was not running
+  keeps the launcher alive until the browser is closed (measured: 318 s with Brave), which blocked the caller. A launcher
+  that fails within 1.5 s is still reported as an error (the URL is then sent to the Receiver).
+
+## Verified
+
+- macOS: detection and launch against Orion. Windows 11: `cargo test -p shared --lib` and a real launch of Brave by
+  ProgId (`BROWSER=BraveHTML.<id>`; on Windows the Sender is already the default, so `BROWSER` must be set).
+- Not verified: Linux.
