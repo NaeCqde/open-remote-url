@@ -38,6 +38,21 @@ fn print_status() {
         "Not registered"
     };
 
+    let domains_display = if config.domains.is_empty() {
+        match config.domain_mode {
+            shared::domain_filter::DomainMode::Exclude => "(none: every URL is sent)".to_string(),
+            shared::domain_filter::DomainMode::Include => "(none: no http/https URL is sent)".to_string(),
+        }
+    } else {
+        config.domains.join(", ")
+    };
+    let domain_mode_display = match config.domain_mode {
+        shared::domain_filter::DomainMode::Include => "include (only listed hosts are sent)",
+        shared::domain_filter::DomainMode::Exclude => "exclude (listed hosts open locally)",
+    };
+    let browser_display = shared::local_browser::configured_browser()
+        .unwrap_or_else(|| "(unknown)".to_string());
+
     let status_msg = format!(
         "Open Remote URL - Sender Status\n\n\
         [Status]\n\
@@ -50,7 +65,10 @@ fn print_status() {
         - Host URL:         {}/\n\
         - Auth:             {}\n\
         - Custom Schemes:   {}\n\
-        - HTTP/HTTPS:       {}",
+        - HTTP/HTTPS:       {}\n\
+        - Domain mode:      {}\n\
+        - Domains:          {}\n\
+        - Local browser:    {}",
         if is_installed { "Yes" } else { "No" },
         if is_running { "Yes" } else { "No" },
         exe_display,
@@ -61,6 +79,9 @@ fn print_status() {
         auth_status,
         schemes_display,
         http_display,
+        domain_mode_display,
+        domains_display,
+        browser_display,
     );
 
     println!("{}", status_msg);

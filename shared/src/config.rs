@@ -376,6 +376,16 @@ pub struct SenderConfig {
     pub schemes: Vec<String>,
     /// Whether to register http/https as URL handlers. Default true.
     pub register_http: bool,
+    /// `DOMAIN_MODE`: whether `domains` lists the hosts that are sent (include) or the ones opened locally (exclude).
+    pub domain_mode: crate::domain_filter::DomainMode,
+    /// `DOMAINS`: host patterns (`www.example.com`, `*.example.com`, an IP, a CIDR range) for http/https URLs.
+    pub domains: Vec<String>,
+}
+
+impl SenderConfig {
+    pub fn domain_rules(&self) -> crate::domain_filter::DomainRules {
+        crate::domain_filter::DomainRules::new(self.domain_mode, &self.domains)
+    }
 }
 
 impl SenderConfig {
@@ -399,6 +409,15 @@ impl SenderConfig {
         let register_http = env::var("HTTP")
             .map(|v| v.trim().to_lowercase() != "false")
             .unwrap_or(true);
+        let domain_mode = crate::domain_filter::DomainMode::parse(
+            &env::var("DOMAIN_MODE").unwrap_or_default(),
+        );
+        let domains = env::var("DOMAINS")
+            .unwrap_or_default()
+            .split(',')
+            .map(|s| s.trim().to_string())
+            .filter(|s| !s.is_empty())
+            .collect();
         Self {
             listen,
             sender_host,
@@ -408,6 +427,8 @@ impl SenderConfig {
             passphrase,
             schemes,
             register_http,
+            domain_mode,
+            domains,
         }
     }
 }
