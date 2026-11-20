@@ -1,33 +1,33 @@
-# Changes
+# 変更履歴
 
 2026-11-17
 
-## Added
+## 追加
 
-- Sender: route http/https URLs by host. `DOMAINS` (exact host, `*.example.com`, IP, CIDR) with `DOMAIN_MODE`
-  (`exclude`: listed hosts open locally, the rest is sent; `include`: only listed hosts are sent). Other schemes are always sent.
-- Sender: `BROWSER` and automatic remembering of the real default browser (taken just before the Sender replaces the
-  OS default for http/https). Local URLs are launched directly in that app (macOS `open -b`, Linux `gtk-launch`,
-  Windows ProgID command), so they never loop back to the Sender. If no browser is known or the launch fails, the URL is sent.
-- `shared/src/domain_filter.rs`, `shared/src/local_browser.rs` (unit tests included), status output, `sender/.env`,
-  `docs/SPEC.md`, `README.md`, `README.en.md`.
+- Sender: http/https の URL を、ホストで振り分ける。`DOMAINS`(ホストの完全一致、`*.example.com`、IP、CIDR)と `DOMAIN_MODE` を使う
+  (`exclude`: 列挙したホストはローカルで開き、それ以外を送る。`include`: 列挙したホストだけを送る)。ほかのスキームは、いつも送る。
+- Sender: `BROWSER` と、本来の既定ブラウザーの自動記憶(Sender が http/https の OS 既定を置き換える直前に取る)。
+  ローカルの URL は、そのアプリで直接起動する(macOS は `open -b`、Linux は `gtk-launch`、Windows は ProgID のコマンド)ので、
+  Sender に戻ってくる循環は起きない。ブラウザーが分からないとき、または起動に失敗したときは、URL を送る。
+- `shared/src/domain_filter.rs`、`shared/src/local_browser.rs`(単体テスト付き)、状態の出力、`sender/.env`、
+  `docs/SPEC.md`、`README.md`、`README.en.md`。
 
-- `BROWSER` is written at every Sender start: when the OS default is another browser, it is stored in the installed `.env`
-  (overwriting) and the Sender takes over; when the Sender already is the default, `BROWSER` is read (Windows: if nothing is
-  set, the first browser registered under StartMenuInternet). `config::set_env_value` edits one key and keeps the rest.
-- Uninstall (Sender) restores the default browser from `BROWSER` (else the remembered one) if the Sender is still the default:
-  macOS bundle id, Linux `.desktop` id (and removes the Sender's `.desktop`). Windows cannot set it from a program, so the
-  Sender's registration is removed and the user is told to pick a browser. `BROWSER` stays in the `.env`.
+- `BROWSER` は、Sender を起動するたびに書き込む。OS の既定が別のブラウザーのときは、それをインストール先の `.env` に
+  書き(上書き)、Sender が引き継ぐ。Sender がすでに既定のときは、`BROWSER` を読む(Windows: 何も設定されていなければ、
+  StartMenuInternet に最初に登録されているブラウザー)。`config::set_env_value` は、キー 1 つだけを書き換え、ほかは残す。
+- アンインストール(Sender)は、Sender がまだ既定なら、`BROWSER`(なければ記憶したもの)から既定のブラウザーを戻す:
+  macOS はバンドル ID、Linux は `.desktop` の ID(あわせて Sender の `.desktop` を消す)。Windows はプログラムから設定できないので、
+  Sender の登録を消し、ブラウザーを選ぶようにユーザーに伝える。`BROWSER` は `.env` に残る。
 
-## Fixed
+## 修正
 
-- Launching the local browser no longer waits for the launcher to exit. On Windows a browser that was not running
-  keeps the launcher alive until the browser is closed (measured: 318 s with Brave), which blocked the caller. A launcher
-  that fails within 1.5 s is still reported as an error (the URL is then sent to the Receiver).
+- ローカルのブラウザーを起動するとき、ランチャーの終了を待たなくした。Windows では、動いていなかったブラウザーを起動すると、
+  ブラウザーを閉じるまでランチャーが残る(Brave で 318 秒を計測)。そのため、呼び出し元が止まっていた。1.5 秒以内に
+  失敗したランチャーは、これまでどおりエラーとして報告する(その URL は Receiver に送る)。
 
-## Verified
+## 検証
 
-- macOS: detection and launch against Orion. Windows 11: `cargo test -p shared --lib` and a real launch of Brave by
-  ProgId (`BROWSER=BraveHTML.<id>`; on Windows the Sender is already the default, so `BROWSER` must be set).
-- Not verified: Linux; the startup write of `BROWSER`, the Windows registered-browser fallback and the uninstall restore
-  were unit-tested only (set_env_value) and not run on a real machine.
+- macOS: Orion で、検出と起動を確認した。Windows 11: `cargo test -p shared --lib` と、ProgId による Brave の実際の起動
+  (`BROWSER=BraveHTML.<id>`。Windows では Sender がすでに既定なので、`BROWSER` を設定する必要がある)。
+- 未検証: Linux。起動時の `BROWSER` の書き込み、Windows の登録済みブラウザーへの代替、アンインストールでの復元は、
+  単体テスト(set_env_value)だけで、実機では動かしていない。
