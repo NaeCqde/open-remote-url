@@ -7,7 +7,7 @@ use axum::{
     Json, Router,
 };
 use base64::prelude::*;
-use shared::{OpenUrlRequest, PortAction, PortsRequest, ProxyRequest, ProxyResponse};
+use shared::{HeadersRef, OpenUrlRequest, PortAction, PortsRequest, ProxyRequestRef, ProxyResponseIn};
 use std::collections::HashMap;
 use std::net::SocketAddr;
 use std::sync::Arc;
@@ -291,25 +291,14 @@ async fn handle_proxy_fallback(
         uri
     );
 
-    let mut headers_map = HashMap::new();
-    for (key, val) in headers.iter() {
-        if let Ok(val_str) = val.to_str() {
-            headers_map.insert(key.to_string(), val_str.to_string());
-        }
-    }
-
+    // the request is written from the parts that came in: only the Base64 text of the body is new
     let body_base64 = BASE64_STANDARD.encode(&body);
-    let path_and_query = uri
-        .path_and_query()
-        .map(|pq| pq.as_str().to_string())
-        .unwrap_or_else(|| "/".to_string());
-
-    let proxy_req = ProxyRequest {
+    let proxy_req = ProxyRequestRef {
         port: state.port,
-        method: method.to_string(),
-        path_and_query,
-        headers: headers_map,
-        body: body_base64,
+        method: method.as_str(),
+        path_and_query: uri.path_and_query().map(|pq| pq.as_str()).unwrap_or("/"),
+        headers: HeadersRef(&headers),
+        body: &body_base64,
     };
 
     let mut post_req = state
@@ -324,18 +313,20 @@ async fn handle_proxy_fallback(
         Ok(resp) => {
             let relay_status = resp.status();
             if relay_status.is_success() {
-                match resp.json::<ProxyResponse>().await {
+                // read in place from the received bytes (no second copy of the Base64 body)
+                let received = resp.bytes().await.unwrap_or_default();
+                match serde_json::from_slice::<ProxyResponseIn>(&received) {
                     Ok(proxy_resp) => {
                         let mut response_builder =
                             axum::response::Response::builder().status(proxy_resp.status);
 
-                        for (k, v) in proxy_resp.headers {
-                            if k.to_lowercase() != "content-length"
-                                && k.to_lowercase() != "transfer-encoding"
+                        for (k, v) in &proxy_resp.headers {
+                            if !k.eq_ignore_ascii_case("content-length")
+                                && !k.eq_ignore_ascii_case("transfer-encoding")
                             {
                                 if let Ok(hname) = axum::http::HeaderName::from_bytes(k.as_bytes())
                                 {
-                                    if let Ok(hval) = axum::http::HeaderValue::from_str(&v) {
+                                    if let Ok(hval) = axum::http::HeaderValue::from_str(v) {
                                         response_builder = response_builder.header(hname, hval);
                                     }
                                 }
@@ -343,7 +334,7 @@ async fn handle_proxy_fallback(
                         }
 
                         let body_bytes =
-                            BASE64_STANDARD.decode(&proxy_resp.body).unwrap_or_default();
+                            BASE64_STANDARD.decode(proxy_resp.body.as_bytes()).unwrap_or_default();
                         return response_builder
                             .body(axum::body::Body::from(body_bytes))
                             .unwrap_or_else(|_| {
