@@ -6,8 +6,8 @@ use axum::{
     Json, Router,
 };
 use base64::prelude::*;
-use shared::{OpenUrlRequest, PortAction, PortsRequest, ProxyRequest, ProxyResponse};
-use std::collections::{HashMap, HashSet, VecDeque};
+use shared::{HeadersRef, OpenUrlRequest, PortAction, PortsRequest, ProxyRequest, ProxyResponseRef};
+use std::collections::{HashSet, VecDeque};
 use std::net::SocketAddr;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
@@ -175,22 +175,17 @@ async fn handle_proxy(
     }
 
     match req_builder.send().await {
-        Ok(resp) => {
+        Ok(mut resp) => {
             let status = resp.status().as_u16();
-            let mut headers_map = HashMap::new();
-            for (key, val) in resp.headers().iter() {
-                if let Ok(val_str) = val.to_str() {
-                    headers_map.insert(key.to_string(), val_str.to_string());
-                }
-            }
-
+            // the headers are written from the response's own map: nothing is copied but the Base64 of the body
+            let resp_headers = std::mem::take(resp.headers_mut());
             let body_bytes = resp.bytes().await.unwrap_or_default();
             let body_base64 = BASE64_STANDARD.encode(&body_bytes);
 
-            let proxy_resp = ProxyResponse {
+            let proxy_resp = ProxyResponseRef {
                 status,
-                headers: headers_map,
-                body: body_base64,
+                headers: HeadersRef(&resp_headers),
+                body: &body_base64,
             };
 
             (StatusCode::OK, Json(proxy_resp)).into_response()

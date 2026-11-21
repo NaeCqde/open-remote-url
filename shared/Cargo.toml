@@ -6,6 +6,7 @@ edition = "2021"
 
 [dependencies]
 serde = { version = "1.0", features = ["derive"] }
+http = "1"
 dotenvy = "0.15"
 log = "0.4"
 eframe = "0.29"
